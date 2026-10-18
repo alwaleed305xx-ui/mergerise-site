@@ -1,0 +1,104 @@
+/* MergeRise v5 — Daily Hustle pill + host card (F4), streak strip v2 + shield + welcome-back (F5), reaction pop (F6b).
+   Uses the tokens of css/app.css; RTL-aware (logical insets). Linked from index.html after app.css. */
+
+/* ---------- F4: hub pill (36 px, "one pill under the Play button") ---------- */
+.daily-pill { --c: #38bdf8; appearance: none; -webkit-appearance: none; font: inherit; font-weight: 700; font-size: 12px; line-height: 1; color: #fff; height: 36px; max-width: 100%; display: inline-flex; align-items: center; gap: 7px; padding-block: 0; padding-inline: 5px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--c) 32%, rgba(14,12,48,.78)), rgba(255,255,255,.08)); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.14); cursor: pointer; white-space: nowrap; animation: dcIn .45s var(--ease); transition: transform .15s var(--ease); }
+@keyframes dcIn { from { opacity: 0; transform: translateY(8px) } }
+.daily-pill:active { transform: scale(.97); }
+.daily-pill .dp-pic, .daily-pill .dp-tick { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; overflow: hidden; }
+.daily-pill .dp-pic { border: 1.5px solid var(--c); background: rgba(255,255,255,.1); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent); }
+.daily-pill .dp-pic svg { width: 100%; height: 100%; }
+.daily-pill .dp-tick { background: var(--grad-green); display: grid; place-items: center; box-shadow: 0 4px 10px rgba(34,197,94,.45); animation: pop .4s cubic-bezier(.2,1.6,.4,1); }
+.daily-pill .dp-tick svg { width: 14px; height: 14px; }
+.daily-pill .dp-t { display: inline-flex; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.daily-pill .dp-t b { font-weight: 800; }
+.daily-pill .dp-host { color: #e9e7ff; font-weight: 600; white-space: pre; }
+.daily-pill .dp-tries { color: #fde68a; font-weight: 800; }
+.daily-pill .dp-time { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; white-space: pre; }
+.daily-pill .dp-stars { display: inline-flex; gap: 0; }
+.daily-pill .dp-stars svg { width: 13px; height: 13px; opacity: .28; }
+.daily-pill .dp-stars svg.on { opacity: 1; filter: drop-shadow(0 0 3px rgba(251,191,36,.8)); }
+.daily-pill.done { border-color: rgba(34,197,94,.6); background: linear-gradient(135deg, rgba(34,197,94,.26), rgba(255,255,255,.06)); }
+.daily-pill.empty { filter: saturate(.55); opacity: .85; }
+
+/* ---------- F4: host card above the orders (play screen) ---------- */
+.daily-host { --c: #38bdf8; display: flex; align-items: center; gap: 10px; margin: 2px 10px 6px; padding: 6px 10px; border-radius: 16px; background: linear-gradient(135deg, color-mix(in srgb, var(--c) 26%, transparent), rgba(255,255,255,.05)); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); color: #fff; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 24px rgba(0,0,0,.3); flex-shrink: 0; }
+.daily-host .dh-pic { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--c); overflow: hidden; flex-shrink: 0; background: rgba(255,255,255,.08); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 60%, transparent); }
+.daily-host .dh-pic svg { width: 100%; height: 100%; }
+.daily-host .dh-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.daily-host .dh-name { font-weight: 800; font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.daily-host .dh-title { font-size: 10px; color: #fde68a; font-weight: 700; background: rgba(0,0,0,.3); border-radius: 999px; padding: 1px 7px; }
+.daily-host .dh-line { font-size: 11px; color: #e9e7ff; font-weight: 600; line-height: 1.25; }
+.daily-host .dh-line.brief { color: var(--muted); }
+.daily-host .dh-rw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.daily-host .rw { display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,.32); border-radius: 999px; padding-block: 2px; padding-inline: 3px 7px; font-size: 10px; font-weight: 700; color: #fde68a; }
+.daily-host .rw svg { width: 14px; height: 14px; }
+.daily-host .rw i { font-style: normal; color: var(--muted); font-weight: 600; }
+.daily-host .rw.meta { color: #e9e7ff; padding-inline: 7px; }
+
+/* ---------- F5: streak strip v2 ---------- */
+.streak-dock { position: absolute; inset-inline-end: 12px; top: calc(var(--sat) + 68px); z-index: 3; width: min(262px, calc(100% - 24px)); display: flex; justify-content: flex-end; pointer-events: none; }
+.streak-dock > * { pointer-events: auto; }
+.streak-strip { width: 100%; background: linear-gradient(180deg, rgba(30,27,75,.88), rgba(12,11,40,.88)); border: 1px solid var(--stroke-2); border-radius: 18px; padding: 8px 10px; color: #fff; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 12px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.12); display: flex; flex-direction: column; gap: 6px; font-size: 12px; animation: dcIn .45s var(--ease); }
+.streak-strip .sk-head { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 12px; }
+.streak-strip .sk-face { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; border: 1.5px solid #f59e0b; flex-shrink: 0; background: rgba(255,255,255,.1); }
+.streak-strip .sk-face svg { width: 100%; height: 100%; }
+.streak-strip .sk-t { flex: 1; min-width: 0; line-height: 1.15; }
+.streak-strip .sk-t small { display: block; font-size: 10px; color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.streak-strip .sk-t small.shield { color: #cffafe; }
+.streak-strip .sk-t small.missed { color: #fde68a; }
+.streak-strip .sk-shield { display: inline-flex; align-items: center; gap: 3px; border: 1px solid rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #cffafe; border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; }
+.streak-strip .sk-shield.earn { border-style: dashed; animation: skEarn 2.2s ease-in-out infinite; }
+@keyframes skEarn { 50% { box-shadow: 0 0 10px rgba(34,211,238,.6) } }
+.streak-strip .sk-nodes { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.streak-strip .sk-node { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; border-radius: 10px; padding: 4px 0 3px; background: rgba(255,255,255,.06); border: 1px solid var(--stroke); font-size: 9px; font-weight: 700; color: var(--muted); transition: transform .2s var(--ease); }
+.streak-strip .sk-node .ic svg { width: 18px; height: 18px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
+.streak-strip .sk-node .v { color: #fff; font-size: 9px; line-height: 1; }
+.streak-strip .sk-node.big { border-color: rgba(251,191,36,.55); background: rgba(251,191,36,.08); }
+.streak-strip .sk-node.repeat { border-style: dashed; opacity: .8; }
+.streak-strip .sk-node.claimed { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.5); color: #bbf7d0; }
+.streak-strip .sk-node.claimed .ic { opacity: .7; }
+.streak-strip .sk-node.claimed::after { content: '\2713'; position: absolute; top: -5px; inset-inline-end: -4px; width: 14px; height: 14px; border-radius: 50%; background: var(--grad-green); color: #fff; font-size: 9px; font-weight: 800; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.streak-strip .sk-node.today { border-color: #fbbf24; background: linear-gradient(180deg, rgba(251,191,36,.32), rgba(251,191,36,.08)); color: #fde68a; cursor: pointer; animation: skPulse 1.6s ease-in-out infinite; }
+@keyframes skPulse { 50% { transform: scale(1.1); box-shadow: 0 0 0 3px rgba(251,191,36,.25), 0 0 16px rgba(251,191,36,.6) } }
+.streak-strip .sk-node.today.done { animation: none; cursor: default; }
+.streak-strip .sk-claim { width: 100%; padding: 7px 10px; font-size: 12px; }
+.streak-strip .sk-claim svg { width: 18px; height: 18px; }
+/* claimed today → one 32 px chip ("✓ Day 5 · tomorrow 250"); tap = peek at the lane, tap the header = back to the chip */
+.streak-strip.collapsed { width: auto; max-width: 100%; height: 32px; flex-direction: row; align-items: center; gap: 6px; padding-block: 0; padding-inline: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.streak-strip.collapsed .sk-tick { width: 22px; height: 22px; border-radius: 50%; background: var(--grad-green); display: grid; place-items: center; flex-shrink: 0; box-shadow: 0 3px 8px rgba(34,197,94,.45); }
+.streak-strip.collapsed .sk-tick svg { width: 13px; height: 13px; }
+.streak-strip.collapsed .sk-chip-t { overflow: hidden; text-overflow: ellipsis; }
+.streak-strip.collapsed:active { transform: scale(.97); }
+.streak-strip.peek .sk-head { cursor: pointer; }
+.streak-strip .sk-note { font-size: 10px; color: var(--muted); font-weight: 600; text-align: center; }
+
+/* ---------- F5: shield sheet + welcome-back modal ---------- */
+.wb { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.wb .wb-face { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 3px solid #f59e0b; background: rgba(255,255,255,.1); box-shadow: 0 0 24px rgba(245,158,11,.5); animation: pop .5s cubic-bezier(.2,1.6,.4,1); }
+.wb .wb-face svg { width: 100%; height: 100%; }
+.wb .wb-say { background: #fff; color: var(--ink); border-radius: 14px; padding: 6px 12px; font-weight: 700; font-size: 13px; max-width: 300px; }
+.shield-count { display: inline-flex; align-items: center; gap: 6px; font-size: 22px; font-weight: 800; color: #cffafe; }
+
+/* ---------- F6b: reaction pop ---------- */
+.react-pop { position: absolute; z-index: 58; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 6px; max-width: 210px; background: #fff; color: var(--ink); border-radius: 16px; padding: 4px 10px 4px 4px; font-weight: 700; font-size: 11px; line-height: 1.2; box-shadow: 0 10px 24px rgba(0,0,0,.45), 0 0 0 2px var(--c, #ec4899); pointer-events: none !important; animation: rpIn .32s cubic-bezier(.2,1.4,.4,1); will-change: transform, opacity; }
+.react-pop::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: #fff; transform: translateX(-50%) rotate(45deg); border-radius: 3px; }
+.react-pop .rp-pic { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; border: 2px solid var(--c, #ec4899); flex-shrink: 0; background: #eef; }
+.react-pop .rp-pic svg { width: 100%; height: 100%; }
+.react-pop .rp-say { white-space: normal; text-align: start; }
+.react-pop.out { animation: rpOut .24s ease forwards; }
+@keyframes rpIn { from { opacity: 0; transform: translate(-50%, -55%) scale(.6) } }
+@keyframes rpOut { to { opacity: 0; transform: translate(-50%, -125%) scale(.9) } }
+.rp-hit { animation: rpHit .55s var(--ease); }
+@keyframes rpHit { 40% { transform: scale(1.35) } }
+.order .cust.pic.rp-hit { animation: rpHitPic .55s var(--ease); }
+@keyframes rpHitPic { 40% { transform: translateX(-50%) scale(1.4); box-shadow: 0 0 0 3px #f43f5e, 0 2px 8px rgba(0,0,0,.4) } }
+
+/* iOS 15.0-16.1 WebKit has no color-mix(): with var() inside, those declarations parse but drop at computed-value
+   time, which would leave the pill and host card without border/background. Plain fallbacks for those versions only. */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .daily-pill { border: 1px solid rgba(56,189,248,.55); background: linear-gradient(135deg, rgba(25,40,80,.85), rgba(255,255,255,.08)); }
+  .daily-pill .dp-pic { box-shadow: 0 0 10px rgba(56,189,248,.6); }
+  .daily-host { background: linear-gradient(135deg, rgba(56,189,248,.26), rgba(255,255,255,.05)); border: 1px solid rgba(56,189,248,.5); }
+  .daily-host .dh-pic { box-shadow: 0 0 14px rgba(56,189,248,.6); }
+}

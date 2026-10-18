@@ -1,0 +1,97 @@
+/* F1 style engine — wardrobe header strip (theme pill, Auto-dress, sort/filter/search, saved looks),
+   "+N" theme-delta badges on item cards, theme chooser, and the Lookbook pages in the Collection book.
+   Linked after app.css; uses its tokens only. */
+
+/* ---------- wardrobe header strip ---------- */
+.style-head { display: flex; flex-direction: column; gap: 5px; padding: 4px 12px 0; flex-shrink: 0; }
+.sh-row { display: flex; gap: 6px; align-items: center; }
+.theme-pill { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(251,191,36,.5); background: linear-gradient(135deg, rgba(251,191,36,.28), rgba(236,72,153,.18)); color: #fde68a; border-radius: 999px; padding: 7px 12px; font-weight: 800; font-size: 13px; cursor: pointer; text-align: start; line-height: 1.1; transition: transform .15s var(--ease); }
+.theme-pill:active { transform: scale(.97); }
+.theme-pill .em { font-size: 16px; }
+.theme-pill .tn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-pill .ts { font-size: 12px; opacity: .95; white-space: nowrap; }
+.theme-pill .ts.bump { animation: bump .35s var(--ease); display: inline-block; }
+.theme-pill.off { border-color: var(--stroke); background: var(--glass); color: var(--muted); }
+.sh-row .btn.sm { padding: 8px 12px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+.sh-row .btn.sm svg { width: 16px; height: 16px; }
+.sh-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; align-items: center; padding-bottom: 1px; }
+.sh-chips::-webkit-scrollbar { display: none; }
+.fchip { flex-shrink: 0; border: 1px solid var(--stroke); background: var(--glass); color: #fff; border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .2s, transform .15s var(--ease); display: inline-flex; align-items: center; gap: 4px; }
+.fchip:active { transform: scale(.95); }
+.fchip.on { background: var(--grad-2); border-color: transparent; }
+.fchip.filter.on { background: var(--grad); }
+.fchip.lbl { border: 0; background: transparent; color: var(--muted); padding-inline: 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; cursor: default; }
+.sh-chips .sep { width: 1px; height: 18px; background: var(--stroke-2); flex-shrink: 0; }
+.sh-search { width: 100%; border: 1px solid var(--stroke); border-radius: 14px; padding: 8px 12px; font-size: 14px; font-weight: 600; color: #fff; background: var(--glass); outline: none; user-select: text; -webkit-user-select: text; }
+.sh-search::placeholder { color: var(--muted-2); }
+.sh-search:focus { border-color: #a78bfa; box-shadow: 0 0 0 3px rgba(139,92,246,.25); }
+
+/* ---------- saved looks row (swaps in for the chip row; never a third row) ---------- */
+.looks-strip { display: flex; gap: 6px; overflow-x: auto; padding: 0; scrollbar-width: none; align-items: center; }
+.looks-strip .fchip.looks { flex-shrink: 0; }
+.looks-strip .sep { width: 1px; height: 18px; background: var(--stroke-2); flex-shrink: 0; }
+.looks-strip::-webkit-scrollbar { display: none; }
+.look-slot { position: relative; flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px; border: 1px dashed var(--stroke-2); background: rgba(255,255,255,.06); color: #fff; display: grid; place-items: center; overflow: hidden; padding: 0; cursor: pointer; font-weight: 800; transition: transform .15s var(--ease), box-shadow .2s; }
+.look-slot:active { transform: scale(.93); }
+.look-slot.full { border-style: solid; background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04)); }
+.look-slot.full.on { border-color: #22d3ee; box-shadow: 0 0 0 1px #22d3ee, 0 0 14px rgba(34,211,238,.45); }
+.look-slot svg { width: 100%; height: 100%; }
+.look-slot .plus { font-size: 22px; color: var(--muted); line-height: 1; }
+.look-slot .idx { position: absolute; bottom: 1px; inset-inline-end: 3px; font-size: 9px; color: #fff; background: rgba(0,0,0,.55); border-radius: 5px; padding: 0 3px; }
+.look-slot.buy { border-color: rgba(251,191,36,.5); color: #fde68a; font-size: 10px; display: flex; flex-direction: column; gap: 0; }
+.look-slot.buy svg { width: 16px; height: 16px; }
+.looks-strip .tiny { flex-shrink: 0; }
+
+/* ---------- "+N" theme delta on item cards ---------- */
+.item .delta { position: absolute; top: 6px; inset-inline-end: 6px; font-size: 10px; font-weight: 800; border-radius: 999px; padding: 2px 6px; background: rgba(34,197,94,.92); color: #052e16; box-shadow: 0 2px 8px rgba(0,0,0,.4); z-index: 1; line-height: 1.2; direction: ltr; unicode-bidi: isolate; }
+.theme-pill .ts, .theme-row .st, .lb-tier, .lb-now > span { direction: ltr; unicode-bidi: isolate; }
+.item .delta.down { background: rgba(244,63,94,.85); color: #fff; }
+.item.on .delta { display: none; }
+
+/* ---------- theme chooser modal ---------- */
+.theme-list { display: flex; flex-direction: column; gap: 6px; max-height: 52vh; overflow-y: auto; text-align: start; margin-top: 6px; padding: 2px; }
+.theme-row { display: flex; align-items: center; gap: 8px; background: var(--glass); border: 1px solid var(--stroke); border-radius: 14px; padding: 8px 10px; color: #fff; cursor: pointer; font-weight: 700; font-size: 13px; transition: transform .15s var(--ease); }
+.theme-row:active { transform: scale(.98); }
+.theme-row.on { border-color: rgba(251,191,36,.6); background: linear-gradient(135deg, rgba(251,191,36,.25), rgba(236,72,153,.15)); }
+.theme-row.off { color: var(--muted); }
+.theme-row .em { font-size: 22px; width: 28px; text-align: center; }
+.theme-row .tt { flex: 1; min-width: 0; }
+.theme-row .tt > span { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.theme-row .tt small { display: block; color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.theme-row .st { color: #fde68a; font-size: 12px; white-space: nowrap; }
+.lb-week { font-size: 9px; background: var(--grad); color: #fff; border-radius: 999px; padding: 2px 7px; font-weight: 800; letter-spacing: .4px; white-space: nowrap; }
+
+/* ---------- lookbook pages (Collection → Lookbook) ---------- */
+.lb-page .coll-head { flex-wrap: wrap; }
+.lb-page .brief { color: var(--muted); font-size: 12px; font-weight: 600; margin: -2px 0 8px; }
+.lb-page.locked { opacity: .55; }
+.lb-page.locked .coll-head { margin-bottom: 4px; }
+.lb-tiers { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.lb-tier { display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--stroke); background: rgba(255,255,255,.06); border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.lb-tier svg { width: 14px; height: 14px; }
+.lb-tier.claimed { color: #fde68a; border-color: rgba(251,191,36,.5); background: rgba(251,191,36,.12); }
+.lb-tier.next { border-color: rgba(34,211,238,.6); color: #cffafe; }
+.lb-now { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.lb-now .bar { flex: 1; height: 8px; background: rgba(255,255,255,.12); border-radius: 999px; overflow: hidden; position: relative; }
+.lb-now .bar i { display: block; height: 100%; background: var(--grad-gold); border-radius: 999px; transition: width .6s var(--ease); }
+.lb-now .bar b { position: absolute; top: -3px; width: 2px; height: 14px; background: rgba(255,255,255,.55); }
+.lb-acts { display: flex; gap: 8px; }
+.lb-acts .btn { flex: 1; padding: 9px 10px; }
+.lb-acts .btn svg { width: 16px; height: 16px; }
+.lb-lock { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.lb-lock svg { width: 18px; height: 18px; }
+.lb-summary { display: flex; align-items: center; gap: 8px; background: var(--glass); border: 1px solid var(--stroke); border-radius: 16px; padding: 8px 10px; color: #fff; font-size: 12px; font-weight: 700; }
+.lb-summary .av { width: 46px; height: 46px; border-radius: 12px; overflow: hidden; background: rgba(255,255,255,.08); flex-shrink: 0; }
+.lb-summary .av svg { width: 100%; height: 100%; }
+.lb-summary .t { flex: 1; min-width: 0; }
+.lb-summary .t small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; }
+
+/* ---------- wardrobe layout with the strip: a shorter preview keeps >= 2.5 item rows on a 375x812 phone ---------- */
+.ward .ward-preview { height: 29%; min-height: 186px; }
+.ward .ward-preview .av { width: 29.5%; max-width: 136px; margin-bottom: 3px; }
+.ward .sets-bar { padding-top: 4px; }
+.ward .tabs { padding: 5px 12px 3px; }
+@media (max-height: 700px) { .ward .ward-preview { height: 26%; min-height: 166px; } .ward .ward-preview .av { width: 27%; } }
+
+/* ---------- gift reveal: "Lookbook: +0.4★ Comic Con" ---------- */
+.lb-gain { color: #fde68a; font-weight: 800; margin-top: 2px; }

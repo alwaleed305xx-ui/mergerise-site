@@ -1,0 +1,120 @@
+/* Rival Row (v5): hub card, intro modal, settlement + steal picker, This Week screen. Tokens from css/app.css. RTL-safe. */
+
+/* ---------- hub card ---------- */
+/* ≤ 100 px tall at 375 px: 6+5 padding, 3 px gaps, 34 px crops, 13 px chips, one message row with the short AI label */
+.rival-row { position: relative; width: 100%; max-width: 380px; background: linear-gradient(135deg, rgba(139,92,246,.26), rgba(236,72,153,.14)); border: 1px solid rgba(236,72,153,.45); border-radius: 18px; padding: 6px 12px 5px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); color: #fff; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.14); display: flex; flex-direction: column; gap: 3px; transition: transform .14s var(--ease); }
+.rival-row:active { transform: scale(.98); }
+.rr-top { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 12px; line-height: 16px; white-space: nowrap; }
+.rr-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rr-ai { flex: 0 0 auto; margin-inline-end: auto; overflow: visible; font-size: 9px; color: var(--muted); font-weight: 700; text-align: start; }
+.rr-finish { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 700; }
+.rr-timer { color: #fde68a; font-size: 11px; font-weight: 800; }
+.rr-strip { display: flex; justify-content: space-between; gap: 4px; }
+.rr-head { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; flex: 1; }
+.rr-pic { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,.1); border: 2px solid var(--c, #fff); box-shadow: 0 4px 10px rgba(0,0,0,.4); flex-shrink: 0; }
+.rr-pic svg { width: 100%; height: 100%; }
+.rr-head.you .rr-pic { box-shadow: 0 0 0 2px #fff, 0 0 14px rgba(236,72,153,.85); }
+.rr-chip { display: inline-flex; gap: 3px; font-size: 10px; font-weight: 800; background: rgba(0,0,0,.42); border-radius: 999px; padding: 0 6px; white-space: nowrap; max-width: 100%; overflow: hidden; line-height: 13px; }
+.rr-chip .rr-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rr-head.you .rr-chip { background: var(--grad); }
+.rr-line { font-size: 11px; line-height: 14px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rr-foot { font-size: 9px; color: var(--muted); font-weight: 600; line-height: 1.25; }
+
+/* ---------- intro + settlement modals ---------- */
+.modal.rival-modal { max-width: 400px; padding-top: 18px; }
+.rival-intro { display: flex; flex-direction: column; gap: 8px; }
+.ri-walk { display: flex; justify-content: center; gap: 8px; margin: 4px 0 2px; }
+.ri-rival { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); animation: walkIn .7s var(--ease) both; animation-delay: calc(var(--i, 0) * .16s); }
+.ri-rival b { color: #fff; font-size: 13px; }
+html[dir="rtl"] .ri-rival { animation-name: walkInRtl; }
+@keyframes walkIn { from { opacity: 0; transform: translateX(-46px) translateY(6px) } 60% { transform: translateX(4px) translateY(-3px) } to { opacity: 1; transform: none } }
+@keyframes walkInRtl { from { opacity: 0; transform: translateX(46px) translateY(6px) } 60% { transform: translateX(-4px) translateY(-3px) } to { opacity: 1; transform: none } }
+.ri-pic { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; border: 2.5px solid var(--c, #fff); background: rgba(255,255,255,.1); box-shadow: 0 6px 16px rgba(0,0,0,.45); }
+.ri-pic svg { width: 100%; height: 100%; }
+.ri-pitch { color: #e9e7ff; font-weight: 600; font-size: 14px; line-height: 1.4; }
+.ri-race { color: #fde68a; font-weight: 800; font-size: 13px; }
+.settle { display: flex; flex-direction: column; gap: 6px; }
+.settle-place { font-size: 18px; font-weight: 800; }
+.settle-reward { color: #fde68a; font-weight: 800; font-size: 14px; }
+.settle-steal { color: #fff; font-weight: 700; font-size: 13px; margin-top: 4px; }
+.podium { display: flex; justify-content: center; gap: 6px; align-items: flex-end; margin: 2px 0; }
+.podium .rr-head { flex: 0 1 68px; gap: 2px; }
+.podium .rr-pic { width: 40px; height: 40px; }
+.podium .rank { font-size: 12px; font-weight: 800; color: var(--muted); }
+.podium .rr-head.first .rr-pic { width: 56px; height: 56px; border-color: #fbbf24; box-shadow: 0 0 20px rgba(251,191,36,.75); }
+.podium .rr-head.first .rank { font-size: 18px; }
+.steal-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0; }
+.steal-pick .item { padding: 4px 4px 6px; }
+.steal-pick .item .nm { font-size: 10px; height: 24px; margin-top: 4px; }
+.steal-pick .item .why { position: absolute; left: 4px; right: 4px; bottom: 30px; font-size: 9px; font-weight: 800; color: #fff; background: rgba(0,0,0,.65); border-radius: 999px; padding: 2px 4px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* in the settlement modal: 4 columns + tighter cards so Steal / Skip stay above the fold at 812 px with 7 pieces */
+.rival-modal .steal-pick { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.rival-modal .steal-pick .item { padding: 3px 3px 5px; border-radius: 14px; }
+.rival-modal .steal-pick .item .th { border-radius: 10px; }
+.rival-modal .steal-pick .item .nm { font-size: 9px; height: 22px; margin-top: 3px; }
+.rival-modal .steal-pick .item .rar { top: 6px; inset-inline-start: 6px; width: 7px; height: 7px; }
+.rival-modal .steal-pick .item .why { bottom: 27px; left: 3px; right: 3px; font-size: 8px; padding: 2px 3px; }
+.rival-modal .steal-pick .item .setbadge { bottom: 27px; inset-inline-start: 4px; font-size: 10px; padding: 0 4px; }
+/* the signature lock text ("Beat Dex 2 more weeks") wraps to two lines instead of truncating */
+.steal-pick .item.signature .why, .steal-pick .item.placeholder .why { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; border-radius: 8px; }
+.steal-pick .item.nope { opacity: .55; cursor: default; }
+.steal-pick .item.nope .th { filter: grayscale(.7) brightness(.7); }
+.steal-pick .item.sel { border-color: #fbbf24; box-shadow: 0 0 0 2px #fbbf24, 0 0 22px rgba(251,191,36,.55); background: linear-gradient(180deg, rgba(251,191,36,.22), rgba(251,191,36,.05)); transform: translateY(-2px); }
+.steal-pick .item.taken { pointer-events: none; }
+.steal-pick .item.taken::after { content: '✓'; position: absolute; top: 5px; inset-inline-end: 7px; width: 20px; height: 20px; border-radius: 50%; background: var(--grad-green); color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 12px; }
+.steal-pick .item.signature { border-color: rgba(251,191,36,.55); }
+.steal-pick .item.placeholder .th { font-size: 34px; color: #fde68a; }
+.steal-pick .item .setbadge { font-size: 9px; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rival-modal .actions { margin-top: 10px; }
+
+/* ---------- This Week screen ---------- */
+.week .week-list { gap: 10px; }
+.wk-card { background: var(--glass); border: 1px solid var(--stroke); border-radius: 20px; padding: 10px 12px; color: #fff; display: flex; flex-direction: column; gap: 6px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.wk-card .coll-head { margin-bottom: 2px; }
+.wk-head { background: linear-gradient(135deg, rgba(139,92,246,.28), rgba(236,72,153,.14)); border-color: rgba(236,72,153,.45); }
+.wk-theme { display: flex; align-items: center; gap: 10px; font-size: 16px; }
+.wk-theme b { font-size: 16px; }
+.wk-emoji { font-size: 32px; line-height: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,.4)); }
+.wk-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wk-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid rgba(255,255,255,.08); }
+.wk-row:first-of-type { border-top: 0; }
+.wk-row.you { background: linear-gradient(90deg, rgba(236,72,153,.16), transparent); border-radius: 12px; padding-inline: 4px; }
+.wk-rank { width: 22px; text-align: center; font-weight: 800; font-size: 14px; color: var(--muted); flex-shrink: 0; }
+.wk-row .rr-pic { width: 36px; height: 36px; }
+.wk-row-t { flex: 1; min-width: 0; }
+.wk-row-t .ach-n { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-row .bar { height: 6px; background: rgba(255,255,255,.12); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.wk-row .bar i { display: block; height: 100%; background: var(--grad); border-radius: 999px; }
+.wk-row.you .bar i { background: var(--grad-gold); }
+.wk-wins { font-size: 18px; font-weight: 800; min-width: 26px; text-align: end; }
+.wk-fit-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.wk-score { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.wk-score .rr-pic { width: 48px; height: 48px; }
+.wk-score b { font-size: 20px; }
+.wk-vs { font-weight: 800; font-size: 13px; color: var(--muted); letter-spacing: 1px; }
+.wk-hint { text-align: center; color: #fde68a; }
+.wk-fit .btn { align-self: center; }
+.wk-rivals { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 4px 2px 8px; margin: -4px -2px 0; flex-shrink: 0; }
+.wk-card, .week .section-title { flex-shrink: 0; }
+.wk-rivals::-webkit-scrollbar { display: none; }
+.wk-rival { flex: 0 0 158px; background: var(--glass); border: 1px solid var(--stroke); border-top: 3px solid var(--c, #fff); border-radius: 20px; padding: 8px 8px 10px; text-align: center; display: flex; flex-direction: column; gap: 3px; }
+.wk-rival .rig { height: 180px; display: flex; justify-content: center; filter: drop-shadow(0 10px 10px rgba(0,0,0,.5)); }
+.wk-rival .rig svg { height: 100%; width: auto; }
+.wk-rival .ach-n { font-size: 14px; }
+.wk-status { font-size: 10px; font-weight: 800; color: var(--muted); }
+.wk-status.on { color: #fde68a; }
+.wk-say { font-size: 11px; color: #e9e7ff; font-weight: 600; line-height: 1.25; min-height: 28px; }
+.wk-fitpts { font-size: 11px; font-weight: 800; color: #cffafe; }
+.wk-sig { font-size: 10px; color: var(--muted); font-weight: 700; }
+.wk-sig.ok { color: #fde68a; }
+.wk-sigrow { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-top: 1px solid rgba(255,255,255,.08); }
+.wk-sigrow:first-of-type { border-top: 0; }
+.wk-sigdots { display: flex; gap: 3px; flex-shrink: 0; }
+.wk-sigdots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.15); display: block; }
+.wk-sigdots i.on { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,.8); }
+.wk-sigicon { font-size: 18px; }
+.wk-sigrow.done .wk-sigicon { color: #fde68a; }
+.wk-stub { align-items: center; text-align: center; padding: 24px 16px; }
+.week .section-title { padding: 4px 6px 0; }
+/* short phones: the hub card keeps the numbers and drops the chip names (the crop + colour ring identify the rival) */
+@media (max-height: 700px) { .rival-row .rr-chip .rr-nm { display: none; } .rival-row { gap: 2px; padding: 5px 10px 4px; } }
