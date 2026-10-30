@@ -14,7 +14,7 @@ export const CHARM = new Set(['pet_cat', 'pet_dog', 'coffee', 'basketball', 'foo
 export const charm = 6;
 export const unworn = 4;                 // Fit Check only: +4 per piece never worn in a judged event
 export const STAR_CAP = 5.8;
-export const par = n => 90 + 5 * Math.max(1, Math.round(n || 1));
+export const par = n => 90 + 5 * Math.min(60, Math.max(1, Math.round(n || 1)));   // stops growing at stage 60 (390): a full legendary look can still reach 5★ on the 1,000-stage World Tour
 // gem tiers once per Lookbook page: 3.5 / 4.0 / 4.5 / 5.0★ pay FREE_GEMS.lookbook (2 / 4 / 6 / 8) so the gem audit in economy.js never drifts
 const LOOKBOOK_GEMS = Array.isArray(FREE_GEMS.lookbook) && FREE_GEMS.lookbook.length === 4 ? FREE_GEMS.lookbook : [2, 4, 6, 8];
 export const STAR_TIERS = [3.5, 4.0, 4.5, 5.0].map((stars, i) => ({ stars, gems: LOOKBOOK_GEMS[i] }));
@@ -93,7 +93,7 @@ export function themeScore(equipped, theme, opts = {}) {
   for (const it of visiblePieces(equipped)) s += piecePts(it, theme, opts);
   return Math.round(s * 10) / 10;
 }
-// stars for a score at stage n: par(n) = 90 + 5n is 5★, capped at 5.8★
+// stars for a score at stage n: par(n) = 90 + 5·min(n, 60) is 5★, capped at 5.8★
 export function themeStars(score, stageN = state.stage || 1) { return Math.min(STAR_CAP, 5 * (score || 0) / par(stageN)); }
 export const fmtStars = s => (Math.round((s || 0) * 10) / 10).toFixed(1);
 

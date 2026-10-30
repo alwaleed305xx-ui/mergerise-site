@@ -3,7 +3,7 @@
 // boost x2 + recharge boosters, reserve-energy rescue ladder, one-time contextual hints, tutorial, win/lose + gifts.
 import { el, $, $$, haptic, sleep, fmt, clamp } from '../util.js';
 import { t, name } from '../i18n.js';
-import { state, save, addCoins, spend, recordWin, addItem, equip, tierFor, own, discoverItem, storageSet, markSeen, reserveNow, reserveEta, useReserve, storagePrice, buyStorageSlot } from '../store.js';
+import { state, save, addCoins, spend, recordWin, addItem, equip, tierFor, own, discoverItem, storageSet, markSeen, reserveNow, reserveEta, useReserve, storagePrice, buyStorageSlot, reserveMinutes } from '../store.js';
 import { getLevel, rewardFor, MAX_LEVEL, dailyLevel } from '../levels.js';
 import { Game, SELL_VALUE, BUBBLE_MS } from '../game.js';
 import { CHAINS } from '../items.js';
@@ -25,6 +25,9 @@ import { lineFor } from '../customers.js';
 import { weekTheme, themeScore, markWorn } from '../style.js';
 import { trackHostDelivery } from '../missions.js';
 import { renderAvatar } from '../avatar.js';
+import { noteWin } from '../review.js';
+import { enterStage, stageToast, cityReward } from '../tour.js';
+import { entryCost, CITY_REWARD } from '../cities.js';
 
 const HAMMER_COST = 100, RECHARGE_COST = 100, RESCUE_BASE = 150;   // 100 coins = 2 gems (COINS_PER_GEM 50)
 const icon = (chain, lvl) => `<svg viewBox="0 0 100 100">${CHAINS[chain].levels[lvl - 1].icon()}</svg>`;
@@ -41,6 +44,9 @@ export function render(root, params, app) {
   const isDaily = !!params.daily;
   const stageN = isDaily ? Math.max(5, Math.min(40, state.stage)) : (params.stage || state.stage);
   if (isDaily && daily.useDailyTry && !params.retry && !daily.useDailyTry()) { setTimeout(() => app.go('hub', {}), 0); return; }
+  // World Tour stages are paid at the door (js/tour.js enterStage); any other way in goes through the gate first
+  const cost = isDaily ? 0 : entryCost(stageN);
+  if (cost && !params.paid) { setTimeout(() => { app.go('hub', {}); enterStage(app, stageN, params.retry ? { retry: true } : {}); }, 0); return; }
   const level = isDaily ? dailyLevel() : getLevel(stageN);
   try { markWorn(Object.values(state.equipped).filter(Boolean)); } catch (_) { /* optional */ }
   const discovered = new Set(state.discovered || []);
@@ -51,6 +57,9 @@ export function render(root, params, app) {
   let locked = false, hammerMode = false, tutorialStep = level.tutorial && !state.tutorialDone ? 1 : 0, lastInput = Date.now(), finished = false, rescues = 0, beatOrder = false, lowEnergySaid = false, fitCheckWon = false, rivalHard = null;
   const once = (key, fn) => { if (state.seen[key]) return; markSeen(key); fn(); };
   const rescuePrice = () => RESCUE_BASE * Math.pow(2, Math.min(rescues, 2));   // 150 → 300 → 600 and stays at 600
+  // a tour retry pays the entry again (the label says how much); home = closing the energy sheet leaves the lost board
+  const retryLabel = t('retry') + (cost ? ` · ⚡${cost}` : '');
+  const again = (extra, home = false) => isDaily ? app.go('play', { daily: true, retry: true }) : enterStage(app, stageN, extra, { home });
 
   // ---------- HUD ----------
   const chargeChip = el('div', { class: 'chip', html: I.bolt() + `<span>${game.charges}</span>` });
@@ -135,10 +144,11 @@ export function render(root, params, app) {
 
   const sizeBoard = () => {
     const W = wrap.clientWidth - 20 - 16, H = wrap.clientHeight - 20 - 8;
-    const tile = clamp(Math.floor(Math.min((W - (game.cols - 1) * 4) / game.cols, (H - (game.rows - 1) * 4) / game.rows)), 34, 70);
+    const tile = clamp(Math.floor(Math.min((W - (game.cols - 1) * 4) / game.cols, (H - (game.rows - 1) * 4) / game.rows)), 28, 70);   // never taller than its row (small phones)
     board.style.setProperty('--tile', tile + 'px');
   };
-  requestAnimationFrame(sizeBoard); const onResize = () => sizeBoard(); window.addEventListener('resize', onResize);
+  sizeBoard(); requestAnimationFrame(sizeBoard); const onResize = () => sizeBoard(); window.addEventListener('resize', onResize);
+  let wrapObs = null; try { wrapObs = new ResizeObserver(() => sizeBoard()); wrapObs.observe(wrap); } catch (_) { /* older WebKit: resize only */ }
 
   const tileHTML = (cell) => {
     if (cell.kind === 'gen') return genIcon(cell.chain) + `<span class="chg">${cell.auto ? 'A' : cell.charges}</span><span class="cd"></span>`;
@@ -146,35 +156,37 @@ export function render(root, params, app) {
     return icon(cell.chain, cell.lvl) + (cell.chain === 'energy' ? '' : `<span class="lvl">${cell.lvl}</span>`) + (cell.locked ? `<span class="lockbadge">${I.lock()}</span>` : '') + (cell.bubble ? '<span class="bub"></span>' : '');
   };
   const tileClass = (cell) => 'tile' + (cell.kind === 'gen' ? ' gen' + (cell.charges <= 0 ? ' empty' : '') + (cell.auto ? ' auto' : '') : '') + (cell.kind === 'crate' ? ' crate' + (cell.golden ? ' golden' : '') : '') + (cell.kind === 'item' && cell.lvl >= MAX_LEVEL ? ' max' : '') + (cell.chain === 'energy' ? ' energy' : '') + (cell.locked ? ' locked' : '') + (cell.bubble ? ' bubble' : '');
+  const settle = tl => { const done = e => { if (e.target === tl && (e.animationName === 'pop' || e.animationName === 'land')) tl.classList.remove('pop', 'land'); }; tl.addEventListener('animationend', done); tl.addEventListener('animationcancel', done); return tl; };
   const paintCell = (r, c, anim) => {
     const cell = game.cells[r][c], d = cellEls[r][c];
     d.className = 'cell' + (cell && cell.kind === 'fog' ? ' fog' : cell && cell.kind === 'wall' ? ' wall' : '');
     d.innerHTML = '';
-    if (cell && (cell.kind === 'item' || cell.kind === 'gen' || cell.kind === 'crate')) d.append(el('div', { class: tileClass(cell) + (anim ? ' ' + anim : ''), html: tileHTML(cell), 'data-id': cell.id }));
+    if (cell && (cell.kind === 'item' || cell.kind === 'gen' || cell.kind === 'crate')) d.append(settle(el('div', { class: tileClass(cell) + (anim ? ' ' + anim : ''), html: tileHTML(cell), 'data-id': cell.id })));
   };
-  const paintTemp = (r, c, item) => { const d = cellEls[r][c]; d.innerHTML = ''; d.append(el('div', { class: 'tile pop', html: tileHTML(item) })); };
   const paintAll = (anim) => { for (let r = 0; r < game.rows; r++) for (let c = 0; c < game.cols; c++) paintCell(r, c, anim); };
   paintAll('pop'); paintOrders(); paintQuests();
   const center = (r, c) => { const b = cellEls[r][c].getBoundingClientRect(), a = $('#app').getBoundingClientRect(); return { x: b.left + b.width / 2 - a.left, y: b.top + b.height / 2 - a.top, X: b.left + b.width / 2, Y: b.top + b.height / 2 }; };
-  const cellAt = (X, Y) => { const b = board.getBoundingClientRect(); const tile = parseFloat(getComputedStyle(board).getPropertyValue('--tile')); const c = Math.floor((X - b.left - 10) / (tile + 4)), r = Math.floor((Y - b.top - 10) / (tile + 4)); return (r >= 0 && r < game.rows && c >= 0 && c < game.cols) ? [r, c] : null; };
+  const geo = () => { const cs = getComputedStyle(board); return { b: board.getBoundingClientRect(), tile: parseFloat(cs.getPropertyValue('--tile')), rtl: cs.direction === 'rtl' }; };
+  const cellAt = (X, Y, g = geo()) => { const { b, tile, rtl } = g; const c = Math.floor(((rtl ? b.right - X : X - b.left) - 10) / (tile + 4)), r = Math.floor((Y - b.top - 10) / (tile + 4)); return (r >= 0 && r < game.rows && c >= 0 && c < game.cols) ? [r, c] : null; };
   const setInfo = (html) => { info.innerHTML = ''; if (typeof html === 'string') info.innerHTML = html; else info.append(...[].concat(html)); };
   const describe = (cell, r, c) => {
     if (!cell) return setInfo(stageN <= 2 ? `<span class="arrow">${t('tapGenerator')} · ${t('dragToMerge')}</span>` : '');
-    if (cell.kind === 'gen') return setInfo(`${genIcon(cell.chain)}<span>${name(CHAINS[cell.chain].gen.name)} · ${cell.auto ? t('autoGen') : `${cell.charges}/${cell.max} ${t('charges')}`}</span>`);
-    if (cell.kind === 'crate') return setInfo(`${crateIcon(cell.golden)}<span>${t('crate')} · ${t('crateHint')}</span>`);
-    if (cell.chain === 'energy') return setInfo(`${icon(cell.chain, cell.lvl)}<span>${itemName(cell.chain, cell.lvl)} · ${t('collectEnergy')}</span>`);
+    if (cell.kind === 'gen') return setInfo(`${genIcon(cell.chain)}<span class="nm">${name(CHAINS[cell.chain].gen.name)} · ${cell.auto ? t('autoGen') : `${cell.charges}/${cell.max} ${t('charges')}`}</span>`);
+    if (cell.kind === 'crate') return setInfo(`${crateIcon(cell.golden)}<span class="nm">${t('crate')} · ${t('crateHint')}</span>`);
+    if (cell.chain === 'energy') return setInfo(`${icon(cell.chain, cell.lvl)}<span class="nm">${itemName(cell.chain, cell.lvl)} · ${t('collectEnergy')}</span>`);
     const max = cell.lvl >= MAX_LEVEL;
-    const parts = [el('span', { html: icon(cell.chain, cell.lvl) }), el('span', {}, itemName(cell.chain, cell.lvl) + (cell.locked ? ` · ${t('lockedItem')}` : ''))];
+    const parts = [el('span', { html: icon(cell.chain, cell.lvl) }), el('span', { class: 'nm' }, itemName(cell.chain, cell.lvl) + (cell.locked ? ` · ${t('lockedItem')}` : ''))];
     if (!max) parts.push(el('span', { class: 'arrow' }, '→'), el('span', { html: icon(cell.chain, cell.lvl + 1) }));
     parts.push(el('button', { class: 'mini', onclick: () => { sfx.tap(); chainSheet(cell.chain); } }, 'i'));
     if (!cell.locked && !cell.bubble) {
       parts.push(el('button', { class: 'mini sell', onclick: () => {
+        if (locked || game.at(r, c) !== cell) { describe(null); return; }
         const coins = game.sell(r, c);
         if (coins == null) return;
         toast(`${t('sold')} ${coins}`, { icon: I.coin(), ms: 3500, action: { label: t('undo'), onClick: () => { if (game.undoSell()) { addCoins(-coins); paintCoins(); paintCell(r, c, 'pop'); paintOrders(); sfx.drop(); } } } });
       } }, `${t('sell')} ${SELL_VALUE[Math.min(cell.lvl, SELL_VALUE.length) - 1]}`));
       const slot = (state.storage || []).indexOf(null);
-      if (slot >= 0) parts.push(el('button', { class: 'mini', onclick: () => { const it = game.takeOut(r, c); if (it) { storageSet(slot, { chain: it.chain, lvl: it.lvl }); paintStorage(); sfx.pick(); describe(null); } } }, t('store')));
+      if (slot >= 0) parts.push(el('button', { class: 'mini', onclick: () => { if (locked || game.at(r, c) !== cell) { describe(null); return; } const it = game.takeOut(r, c); if (it) { storageSet(slot, { chain: it.chain, lvl: it.lvl }); paintStorage(); sfx.pick(); describe(null); } } }, t('store')));
     }
     setInfo(parts);
   };
@@ -201,18 +213,20 @@ export function render(root, params, app) {
   game.on('swap', ({ from, to }) => { paintCell(from[0], from[1], 'land'); paintCell(to[0], to[1], 'land'); sfx.drop(); });
   game.on('merge', async ({ consumed, made, lvl, chain, points, combo, big, unlocked }) => {
     locked = true;
+    try {
     const target = made[0];
     const tc = center(target.r, target.c);
     const anims = [];
     for (const [r, c] of consumed) {
       if (r === target.r && c === target.c) continue;
+      if (dragSrc && r === dragSrc[0] && c === dragSrc[1]) { cellEls[r][c].innerHTML = ''; continue; }   // the finger carried it here already
       const tl = cellEls[r][c].firstChild; if (!tl) continue;
       const fc = center(r, c);
       anims.push(tl.animate([{ transform: 'translate(0,0) scale(1)' }, { transform: `translate(${tc.x - fc.x}px,${tc.y - fc.y}px) scale(.5)`, opacity: .6 }], { duration: 160, easing: 'ease-in', fill: 'forwards' }).finished);
     }
     await Promise.race([Promise.all(anims), sleep(420)]);   // never hang if animations are paused (background tab)
     for (const [r, c] of consumed) paintCell(r, c);
-    for (const m of made) { if (game.cells[m.r][m.c]) paintCell(m.r, m.c, 'pop'); else paintTemp(m.r, m.c, m.item); }
+    for (const m of made) paintCell(m.r, m.c, game.cells[m.r][m.c] === m.item ? 'pop' : null);
     (big ? sfx.bigMerge : sfx.merge)(lvl, combo); haptic(big ? [20, 30, 40] : 14);
     fx.burst(tc.x, tc.y, { count: big ? 36 : 12 + lvl * 2, speed: 260 + lvl * 30, colors: [CHAINS[chain].color, '#fff', '#ffd34d'] });
     floatText(tc.x, tc.y - 10, `+${points}`);
@@ -223,7 +237,7 @@ export function render(root, params, app) {
     paintOrders(); paintQuests();
     track('merge'); if (big) track('merge5'); if (lvl === 5) track('make5'); if (unlocked) track('unlock');
     if (tutorialStep === 2) { tutorialStep = game.orders.some(o => game.canDeliver(o)) ? 3 : (game.hint() ? 2 : 1); paintTutorial(); }
-    locked = false;
+    } finally { if (!finished && !game.lost) locked = false; }
   });
   game.on('discover', ({ item }) => { track('discover'); discoverItem(item.chain + ':' + item.lvl); const bonus = 8 * item.lvl; addCoins(bonus); const g = item.lvl >= 5 ? FREE_GEMS.discoverHigh : 0; if (g) addGems(g); paintCoins(); bump(coinChip); toast(`${t('newItemFound')}: ${itemName(item.chain, item.lvl)} +${bonus}${g ? ' +' + g + ' 💎' : ''}`, { icon: I.sparkle(), ms: 2400 }); });
   game.on('fog', ({ at, item }) => { paintCell(at[0], at[1], item ? 'pop' : null); sfx.fog(); const { x, y } = center(at[0], at[1]); fx.burst(x, y, { count: 14, colors: ['#b9a8e8', '#fff', '#6a5a8a'], speed: 200, g: 200, life: [0.5, 0.9] }); paintQuests(); paintOrders(); if (item && item.kind === 'crate') once('hint:crate', () => toast(t('hintCrate'), { icon: I.gift(true), ms: 2600 })); });
@@ -242,12 +256,12 @@ export function render(root, params, app) {
   game.on('crateMerge', ({ from, to }) => { paintCell(from[0], from[1]); paintCell(to[0], to[1], 'pop'); sfx.bigMerge(); toast(t('crateMerge'), { icon: I.gift(true) }); });
   game.on('order', ({ order }) => { const d = addOrderCard(order); d.classList.add('tip'); paintOrders(); sfx.goal(); toast(t('tipOrder'), { icon: I.coin() }); });
   game.on('deliver', async ({ removed, idx, order }) => {
-    locked = true; sfx.goal(); haptic([10, 20, 10]);
+    sfx.goal(); haptic([10, 20, 10]);
     const card = orderEls[idx];
     { const npc = npcByName(order.customer.name); const say = card.querySelector('.say'); const thanks = (() => { try { return name(lineFor(npc, 'thanks', { hero: p.name })); } catch (_) { return name(line(npc, 'thanks', p.name)); } })(); if (say) say.textContent = thanks; try { daily.reactionPop(card, npc, thanks); } catch (_) { /* optional */ } try { trackHostDelivery(npc.name); } catch (_) { /* optional */ }
       if (rivalHard && order === rivalHard && game.charges >= level.charges * 0.4) { beatOrder = true; addCoins(50); paintCoins(); toast(t('beatOrder'), { icon: I.trophy() }); }
       const fr = recordDelivery(npc.name); setCounter('friendMax', fr.level); if (fr.leveledUp) { addCoins(fr.reward); paintCoins(); toast(`${npc.name} ❤️ ${t('level')} ${fr.level} · +${fr.reward}`, { icon: I.trophy(), ms: 2600 }); } }
-    track('deliver');
+    track('deliver'); paintOrders();
     for (const rm of removed) { const from = center(rm.r, rm.c); cellEls[rm.r][rm.c].innerHTML = ''; flyTo({ x: from.X, y: from.Y }, card, icon(rm.item.chain, rm.item.lvl), { dur: 520, size: 48 }); }
     await sleep(540);
     card.classList.remove('hit'); void card.offsetWidth; card.classList.add('hit');
@@ -255,7 +269,7 @@ export function render(root, params, app) {
     fx.coins(gr.left + gr.width / 2 - a.left, gr.top + gr.height / 2 - a.top, 10); sfx.coin();
     const paid = order.paid || order.reward.coins; addCoins(paid); paintCoins(); bump(coinChip);
     floatText(gr.left + gr.width / 2 - a.left, gr.top + gr.height - a.top, `+${paid}`, 'gold');
-    paintOrders(); locked = false;
+    paintOrders();
     if (tutorialStep === 3) { tutorialStep = 0; state.tutorialDone = true; save(); paintTutorial(); }
   });
   game.on('boost', on => { boostX2.classList.toggle('on', on); });
@@ -280,58 +294,69 @@ export function render(root, params, app) {
   }, 250);
 
   // ---------- input: tap + drag ----------
-  let drag = null;
+  let drag = null, dragSrc = null;
   const clearMarks = () => { $$('.cell.target, .cell.can', board).forEach(d => d.classList.remove('target', 'can')); $$('.tile.dragging, .tile.sel', board).forEach(d => d.classList.remove('dragging', 'sel')); $$('.slot.target', storageEl).forEach(d => d.classList.remove('target')); };
   const draggable = cell => cell && ((cell.kind === 'item' && game.isFree(cell)) || cell.kind === 'crate');
+  const abortDrag = () => { if (!drag) return; const d = drag; drag = null; if (d.ghost) d.ghost.remove(); clearMarks(); if (d.moved) paintCell(d.r, d.c); };
   board.addEventListener('pointerdown', e => {
     lastInput = Date.now();
+    if (drag) { if (!e.isPrimary) return; abortDrag(); }   // a second finger never takes over a drag
     if (locked || game.won || game.lost) return;
     const cellEl = e.target.closest('.cell'); if (!cellEl) return;
     const r = +cellEl.dataset.r, c = +cellEl.dataset.c;
     const cell = game.at(r, c);
     if (!cell || cell.kind === 'fog' || cell.kind === 'wall') { clearMarks(); describe(null); return; }
     e.preventDefault();
-    drag = { r, c, cell, x0: e.clientX, y0: e.clientY, moved: false, ghost: null };
+    drag = { id: e.pointerId, r, c, cell, x0: e.clientX, y0: e.clientY, moved: false, ghost: null, geo: null, app: null, over: '' };
     try { board.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
   });
   board.addEventListener('pointermove', e => {
-    if (!drag || !draggable(drag.cell)) return;
+    if (!drag || e.pointerId !== drag.id || !draggable(drag.cell)) return;
     const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
     if (!drag.moved && Math.hypot(dx, dy) < 7) return;
     if (!drag.moved) {
       drag.moved = true; sfx.pick(); haptic(6);
       const dtl = cellEls[drag.r][drag.c].firstChild; if (dtl) dtl.classList.add('dragging');
-      drag.ghost = el('div', { class: 'drag-ghost', html: tileHTML(drag.cell) }); $('#overlay').append(drag.ghost);
+      drag.geo = geo(); drag.app = $('#app').getBoundingClientRect();   // measured once per drag
+      drag.ghost = el('div', { class: 'drag-ghost' }, el('div', { class: tileClass(drag.cell), html: tileHTML(drag.cell) }));
+      drag.ghost.style.setProperty('--tile', drag.geo.tile + 'px'); $('#overlay').append(drag.ghost);
       if (drag.cell.kind === 'item') for (const { r, c, cell } of game.items()) if (game.same(cell, drag.cell) && game.canMergeCell(cell) && !(r === drag.r && c === drag.c)) cellEls[r][c].classList.add('can');
       if (drag.cell.kind === 'crate') for (const x of game.crates()) if (!(x.r === drag.r && x.c === drag.c)) cellEls[x.r][x.c].classList.add('can');
       if (tutorialStep === 2) hideHand();
     }
     if (!drag.ghost) return;
-    const a = $('#app').getBoundingClientRect();
-    drag.ghost.style.left = (e.clientX - a.left) + 'px'; drag.ghost.style.top = (e.clientY - a.top) + 'px';
-    $$('.cell.target', board).forEach(d => d.classList.remove('target')); $$('.slot.target', storageEl).forEach(d => d.classList.remove('target'));
-    const at = cellAt(e.clientX, e.clientY);
-    if (at && !(at[0] === drag.r && at[1] === drag.c)) { const cc = game.at(at[0], at[1]); if (cc !== undefined && !(cc && (cc.kind === 'fog' || cc.kind === 'wall'))) cellEls[at[0]][at[1]].classList.add('target'); }
-    else if (drag.cell.kind === 'item') { const s = document.elementFromPoint(e.clientX, e.clientY); const slot = s && s.closest && s.closest('.slot'); if (slot && !slot.classList.contains('full') && !slot.classList.contains('buy')) slot.classList.add('target'); }
+    const a = drag.app;
+    drag.ghost.style.transform = `translate3d(${e.clientX - a.left}px, ${e.clientY - a.top}px, 0) translate(-50%, -60%) scale(1.25)`;
+    // the highlight changes only when the hovered cell / slot changes
+    let over = null, key = '';
+    const at = cellAt(e.clientX, e.clientY, drag.geo);
+    if (at && !(at[0] === drag.r && at[1] === drag.c)) { const cc = game.at(at[0], at[1]); if (cc !== undefined && !(cc && (cc.kind === 'fog' || cc.kind === 'wall'))) { over = cellEls[at[0]][at[1]]; key = 'c' + at; } }
+    else if (!at && drag.cell.kind === 'item') { const s = document.elementFromPoint(e.clientX, e.clientY); const slot = s && s.closest && s.closest('.slot'); if (slot && !slot.classList.contains('full') && !slot.classList.contains('buy')) { over = slot; key = 's' + slot.dataset.slot; } }
+    if (key !== drag.over || (over && !over.classList.contains('target'))) { drag.over = key; $$('.cell.target', board).forEach(d => d.classList.remove('target')); $$('.slot.target', storageEl).forEach(d => d.classList.remove('target')); if (over) over.classList.add('target'); }
   });
   const endDrag = e => {
-    if (!drag) return;
+    if (!drag || e.pointerId !== drag.id) return;
     const d = drag; drag = null;
     if (d.ghost) d.ghost.remove();
     clearMarks();
     if (!d.moved) { onTap(d.r, d.c, d.cell); return; }
-    const at = cellAt(e.clientX, e.clientY);
+    const at = cellAt(e.clientX, e.clientY, d.geo || geo());
     if (!at) {
       const s = document.elementFromPoint(e.clientX, e.clientY); const slot = s && s.closest && s.closest('.slot');
       if (d.cell.kind === 'item' && slot && !slot.classList.contains('full') && !slot.classList.contains('buy')) { const it = game.takeOut(d.r, d.c); if (it) { storageSet(+slot.dataset.slot, { chain: it.chain, lvl: it.lvl }); paintStorage(); sfx.pick(); describe(null); return; } }
       paintCell(d.r, d.c, 'land'); return;
     }
-    const res = game.drop(d.r, d.c, at[0], at[1]);
+    if (at[0] === d.r && at[1] === d.c) { paintCell(d.r, d.c); onTap(d.r, d.c, game.at(d.r, d.c)); return; }   // a wobbly tap (crates are tapped fast)
+    let res; dragSrc = [d.r, d.c];
+    try { res = game.drop(d.r, d.c, at[0], at[1]); } finally { dragSrc = null; }
     if (res === 'none') { paintCell(d.r, d.c, 'land'); sfx.drop(); }
     if (res === 'merge' && d.cell.kind === 'item') describe(game.at(at[0], at[1]), at[0], at[1]);
+    else if (res === 'move' || res === 'swap') { if (hammerMode) setHammer(true); else describe(null); }
   };
   board.addEventListener('pointerup', endDrag);
-  board.addEventListener('pointercancel', endDrag);
+  // iOS cancels a touch when the system takes it (Control Center, a call): nothing is dropped
+  board.addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) abortDrag(); });
+  board.addEventListener('lostpointercapture', e => { if (drag && e.pointerId === drag.id) abortDrag(); });
 
   function onTap(r, c, cell) {
     if (hammerMode) {
@@ -347,7 +372,7 @@ export function render(root, params, app) {
     const tl = cellEls[r][c].firstChild; if (tl) tl.classList.add('sel');
     describe(cell, r, c);
   }
-  function doDeliver(i) { if (locked) return; const res = game.deliver(i); if (!res) { sfx.error(); shake(orderEls[i]); } }
+  function doDeliver(i) { const o = game.orders[i]; if (locked || !o || o.done) return; const res = game.deliver(i); if (!res) { sfx.error(); shake(orderEls[i]); } }
 
   // ---------- boosters ----------
   const setHammer = on => { hammerMode = on; boostHammer.classList.toggle('on', on); $$('.tile.hammerable', board).forEach(d => d.classList.remove('hammerable')); if (on) { for (const { r, c, cell } of game.items()) if (game.canMergeCell(cell) && game.isFree(cell)) cellEls[r][c].firstChild.classList.add('hammerable'); setInfo(`${I.hammer()}<span>${t('hammerHint')}</span>`); } };
@@ -363,6 +388,7 @@ export function render(root, params, app) {
     if (!h) { const o = game.orders.find(x => !x.done); if (o) showNeed(o.items[0], orderEls[o.idx] && orderEls[o.idx].querySelector('.need')); for (const x of game.crates()) { const tl = cellEls[x.r][x.c].firstChild; if (tl) { tl.classList.add('hinting'); setTimeout(() => tl.classList.remove('hinting'), 2000); } } return; }
     for (const x of h) { const tl = cellEls[x.r][x.c].firstChild; tl.classList.add('hinting'); setTimeout(() => tl.classList.remove('hinting'), 2200); }
   };
+  if (!isDaily) stageToast(level);   // World Tour: city, step and the city's rule
   if (stageN === 6) once('hint:boost', () => setTimeout(() => toast(t('hintBoost'), { icon: I.sparkle(), ms: 2800 }), 1200));
 
   // ---------- chain sheet ----------
@@ -407,7 +433,7 @@ export function render(root, params, app) {
   function pause() {
     modal({ title: t('pause'), cls: 'dark', actions: [
       { label: t('resume'), cls: 'green' },
-      { label: t('retry'), cls: 'light', onClick: () => app.go('play', isDaily ? { daily: true, retry: true } : { stage: stageN, retry: true }) },
+      { label: retryLabel, cls: 'light', onClick: () => again({ retry: true }, game.lost) },
       { label: t('home'), cls: 'ghost', onClick: () => app.go('hub') },
     ] });
   }
@@ -420,9 +446,9 @@ export function render(root, params, app) {
     const body = el('div', {}, [el('div', { class: 'win-story' }, t('noMoves')), el('div', { class: 'rewards', html: `<div class="reward">${I.coin()}<span>${fmt(state.coins)}</span></div><div class="reward reserve-r">${I.bolt()}<span>${reserve}/30</span></div>` })]);
     const rescue = el('div', { class: 'rescue' });
     body.append(rescue);
-    const m = modal({ title: t('outOfEnergy'), body, actions: [{ label: t('retry'), cls: 'light', onClick: () => app.go('play', { stage: stageN }) }, { label: t('home'), cls: 'ghost', onClick: () => app.go('hub') }] });
+    const m = modal({ title: t('outOfEnergy'), body, actions: [{ label: retryLabel, cls: 'light', onClick: () => again({}, true) }, { label: t('home'), cls: 'ghost', onClick: () => app.go('hub') }] });
     const useBtn = el('button', { class: 'btn green', disabled: reserve < 5, onclick: () => { if (useReserve(5)) { m.close(); game.addCharges(5); locked = false; sfx.energy(); } } }, [el('span', { html: I.bolt() }), `${t('useReserve')}`]);
-    rescue.append(useBtn, el('div', { class: 'eta' }, reserve >= 5 ? t('reserveRegen') : `${t('reserveRegen')} · ${etaTxt}`));
+    rescue.append(useBtn, el('div', { class: 'eta' }, reserve >= 5 ? t('reserveRegen', reserveMinutes()) : `${t('reserveRegen', reserveMinutes())} · ${etaTxt}`));
     const gp = refillPrice();
     rescue.append(el('button', { class: 'btn purple', onclick: () => { if (!refillBuy()) { sfx.error(); toast(t('notEnoughGems'), { icon: gemIcon() }); app.go('shop', { tab: 'gems' }); return; } m.close(); game.addCharges(GEM.refillEnergy); locked = false; sfx.energy(); } }, [el('span', { html: gemIcon() }), `${t('refillEnergy')} +${GEM.refillEnergy} · ${gp}`]));
     // the button above is refill #(count+1) at refillPrice(); this line names the one after it
@@ -435,8 +461,10 @@ export function render(root, params, app) {
     const coins = rewardFor(level, stars, score);
     const tierBefore = tierFor(state.stage);
     if (!isDaily) recordWin(stageN, stars, score);
+    const cityWin = isDaily ? null : cityReward(level);   // a city's 50th stage, paid once per city
     const tierAfter = tierFor(state.stage);
     track('win'); track('stars', stars); if (level.golden) track('golden');
+    if (!isDaily) { try { noteWin({ stars, golden: !!level.golden }); } catch (_) { /* optional */ } }
     if (!isDaily) { try { rivals.onPlayerWin(stageN, { golden: level.golden, energyLeftFrac: game.charges / Math.max(1, level.charges), fitCheckWon, beatOrder }); } catch (e) { console.warn('race', e); } }
     try { const o = game.orders[0]; if (o) { const npc = npcByName(o.customer.name); setTimeout(() => toast(`${npc.name}: ${name(lineFor(npc, 'win', { hero: p.name }))}`, { ms: 2600 }), 900); } } catch (_) { /* optional */ }
     setCounter('styleMax', styleScore(state.equipped)); setCounter('setsMax', perks.sets.length);
@@ -453,6 +481,7 @@ export function render(root, params, app) {
       el('div', { class: 'quest-summary' }, game.quests.map(q => el('div', { class: 'qs' + (q.done ? ' done' : ''), html: I.star(q.done) + `<span>${questText(q)}</span>` }))),
       el('div', { class: 'rewards', html: `<div class="reward">${I.sparkle()}<span>${fmt(score)}</span></div><div class="reward">${I.coin()}<span>+${coins}</span></div>` }),
     ]);
+    if (cityWin) body.append(el('div', { class: 'win-story city-done' }, `${t('cityDone', name(cityWin.city.name))} +${CITY_REWARD.gems} 💎 · +${fmt(CITY_REWARD.coins)} 🪙`));
     if (pack.stored.length || pack.coins) body.append(el('div', { class: 'packed', html: (pack.stored.length ? `<span>${t('packed')}:</span>` + pack.stored.map(it => icon(it.chain, it.lvl)).join('') : '') + (pack.coins ? `<span>+${pack.coins} ${t('leftovers')}</span>` : '') }));
     modal({ title: t('win'), body, actions: [{ html: `${I.gift(level.golden)}<span>${t('openGift')}</span>`, cls: 'gold', onClick: async () => { await gifts(); } }] });
     const starSvgs = body.querySelectorAll('.stars-row svg');
@@ -464,7 +493,7 @@ export function render(root, params, app) {
       if (isDaily) { try { if (daily.dailyWinFlow) await daily.dailyWinFlow(stars); else daily.recordDailyWin(stars); } catch (e) { console.warn('daily', e); } app.go('hub', { say: t('storyWin')[storyIdx] }); return; }
       await giveGift(false);
       if (level.golden) await giveGift(true);
-      app.go('hub', { say: t('storyWin')[storyIdx], tierUp: tierAfter !== tierBefore ? tierAfter : null });
+      app.go('hub', { say: t('storyWin')[storyIdx], tierUp: tierAfter !== tierBefore ? tierAfter : null, cityUp: cityWin && cityWin.next ? cityWin.nextIdx : null });
     }
     async function giveGift(golden, rarity = null) {
       const lucky = !golden && !rarity && perks.giftLuck && Math.random() < perks.giftLuck ? 'epic' : null;
@@ -500,11 +529,11 @@ export function render(root, params, app) {
           el('div', { class: 'win-story' }, fitCheckWon ? t('fitWin') : t('fitLose')),
           el('div', { class: 'tiny' }, name(fc.hint)),
         ]);
-        modal({ title: t('fitCheck'), body, actions: [{ label: t('letsGo'), cls: 'primary' }] });
+        setTimeout(() => { if (app.current === 'play' && root.isConnected && !root.classList.contains('leaving')) modal({ title: t('fitCheck'), body, actions: [{ label: t('letsGo'), cls: 'primary' }] }); }, 420);
       }
     } catch (e) { console.warn('fitcheck', e); }
   }
   function renderAvatarSafe(eq, who) { try { return renderAvatar({ gender: who.gender, skin: who.skin, equipped: eq, mood: 2 }, { anim: false }); } catch (_) { return ''; } }
   describe(null);
-  return () => { clearInterval(clock); window.removeEventListener('resize', onResize); hideHand(); };
+  return () => { clearInterval(clock); window.removeEventListener('resize', onResize); if (wrapObs) wrapObs.disconnect(); hideHand(); abortDrag(); };
 }

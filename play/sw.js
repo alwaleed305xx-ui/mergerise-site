@@ -1,10 +1,10 @@
 // MergeRise service worker: offline shell, network-first for app files so updates land fast.
 // Fonts are bundled (fonts/ + css/fonts.css), so the game itself never talks to another origin.
-const CACHE = 'mergerise-v7';
+const CACHE = 'mergerise-v11';
 const FONTS = ['baloo2-800-latin', 'baloo2-800-latin-ext', 'cairo-var-arabic', 'cairo-var-latin', 'cairo-var-latin-ext',
   'poppins-500-latin', 'poppins-500-latin-ext', 'poppins-600-latin', 'poppins-600-latin-ext',
   'poppins-700-latin', 'poppins-700-latin-ext', 'poppins-800-latin', 'poppins-800-latin-ext'].map(f => `./fonts/${f}.woff2`);
-const SHELL = ['./', './index.html', './manifest.json', './css/fonts.css?v=1', './css/app.css?v=5', './css/style.css?v=4', './css/rivals.css?v=2', './css/daily.css?v=2', './js/build-config.js', './js/app.js?v=3', './icons/icon-192.png', './icons/icon-512.png', ...FONTS];
+const SHELL = ['./', './index.html', './manifest.json', './css/fonts.css?v=1', './css/app.css?v=7', './css/style.css?v=4', './css/rivals.css?v=3', './css/daily.css?v=3', './js/build-config.js', './js/app.js?v=5', './icons/icon-192.png', './icons/icon-512.png', ...FONTS];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => null)))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

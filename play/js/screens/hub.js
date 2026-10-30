@@ -18,6 +18,9 @@ import { activeSets } from '../sets.js';
 import * as rivals from '../rivals.js';
 import * as daily from '../daily.js';
 import { streakStrip } from '../missions.js';
+import { askIfDue } from '../review.js';
+import { tourRow, enterStage } from '../tour.js';
+import { entryCost, CITIES } from '../cities.js';
 
 export function sceneSVG(equipped) {
   const bgId = equipped && equipped.bg;
@@ -71,13 +74,14 @@ export function render(root, params, app) {
   const won = state.stage - 1;
   const prevAt = TIER_AT[tier];
   const frac = nextAt ? Math.min(1, (won - prevAt) / (nextAt - prevAt)) : 1;
-  const home = el('div', { class: 'hub-home' }, [
+  const tourEl = tourRow(app);   // past the mansion the home row becomes the World Tour row (js/tour.js)
+  const home = tourEl || el('div', { class: 'hub-home' }, [
     el('span', { html: I.home() }),
     el('span', {}, t('tiers')[tier]),
     el('div', { class: 'bar' }, el('i', { style: { width: '0%' } })),
     el('span', { class: 'tiny', style: { color: '#fff' } }, nextAt ? `${won - prevAt}/${nextAt - prevAt}` : '★'),
   ]);
-  requestAnimationFrame(() => { home.querySelector('.bar i').style.width = (frac * 100) + '%'; });
+  if (!tourEl) requestAnimationFrame(() => { home.querySelector('.bar i').style.width = (frac * 100) + '%'; });
 
   const missionsEl = el('div', { class: 'missions' });
   const paintMissions = () => {
@@ -97,7 +101,8 @@ export function render(root, params, app) {
   paintMissions();
   const sets = activeSets(state.equipped);
   const setsChip = sets.length ? el('div', { class: 'stage-badge', title: sets.map(s => name(s.perk.text)).join(' · ') }, sets.map(s => s.emoji).join(' ') + ' ' + t('setActive')) : null;
-  const playBtn = el('button', { class: 'btn primary play pulse', onclick: () => { sfx.tap(); haptic(); app.go('play', { stage: state.stage }); } }, [el('span', { html: I.play() }), `${t('play')} · ${state.stage}`]);
+  const cost = entryCost(state.stage);
+  const playBtn = el('button', { class: 'btn primary play pulse', onclick: () => { sfx.tap(); haptic(); enterStage(app, state.stage); } }, [el('span', { html: I.play() }), `${t('play')} · ${state.stage}`, cost ? el('small', { class: 'play-cost' }, `⚡${cost}`) : null]);
   const side = (icon, label, fn, cls = '') => el('div', { class: 'side' }, [el('button', { class: 'btn icon ' + cls, onclick: () => { sfx.tap(); fn(); } }, el('span', { html: icon })), label]);
   const actions = el('div', { class: 'hub-actions' }, [
     side(I.hanger(), t('wardrobe'), () => app.go('wardrobe'), 'purple'),
@@ -134,6 +139,7 @@ export function render(root, params, app) {
   }
   if (params.first) setTimeout(() => say(t('moodHints')[0]), 600);
   if (params.say) setTimeout(() => say(params.say), 500);
+  askIfDue(app);   // the store's own rating sheet, only after a great win (js/review.js)
   { const r = passSettle(); if (r) { setTimeout(() => { sfx.coin(); coinChip.querySelector('span').textContent = fmt(state.coins); gemChip.querySelector('span').textContent = fmt(gems()); toast(`${t('passTitle')}: +${r.coins} 🪙 +${r.gems} 💎 (${r.days} ${t('days')})`, { icon: I.trophy(), ms: 3000 }); }, 700); } }
   // one-time starter pitch: only once the store can actually sell the pack (native: its price has loaded), and it is
   // marked as seen only when it is shown, so a store that is off or slow never burns the pitch
@@ -147,6 +153,7 @@ export function render(root, params, app) {
   };
   const onPrices = () => { clearTimeout(pitchT); pitchT = setTimeout(pitch, 600); };
   if (starterAvailable() && !state.seen['offer:starter']) { pitchT = setTimeout(pitch, 1500); window.addEventListener('mr:prices', onPrices); }
+  if (params.cityUp != null && CITIES[params.cityUp]) setTimeout(() => { toast(t('nextCity', name(CITIES[params.cityUp].name)), { icon: I.globe(), ms: 3400 }); fx.confetti(90); }, 900);
   if (params.tierUp != null) setTimeout(() => { toast(`🏠 ${t('homeUpgraded')} ${t('tiers')[params.tierUp]}`, { icon: I.home(), ms: 3200 }); fx.confetti(90); }, 900);
   return () => { alive = false; clearInterval(reserveTimer); clearTimeout(pitchT); window.removeEventListener('mr:prices', onPrices); };
 }

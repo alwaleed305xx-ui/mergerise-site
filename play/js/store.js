@@ -23,6 +23,8 @@ const DEFAULT = () => ({
   storageSlots: 4,
   reserve: { n: 15, at: Date.now() },  // reserve energy: cap 30, +1 per 180 s, regenerates offline
   collectionClaimed: {},
+  review: { asks: 0, at: 0, wins: 0 },  // store rating sheet asks (js/review.js)
+  featured: null,                    // { day, epic, legendary }: the Shop's featured item ids, fixed for the day
   created: Date.now(),
 });
 
@@ -60,12 +62,13 @@ export function save() {
 export function reset() {
   // paid state survives a reset (Apple 3.1.1): gems, paid coins, pass, purchases, pack-exclusive items, and the
   // IAP ledger (a transaction still unfinished at reset time must not be granted a second time at the next launch)
-  const keep = { settings: state.settings, gems: state.gems || 0, pass: state.pass || null, purchases: state.purchases || [], paidCoins: state.paidCoins || 0, piggy: state.piggy || null, iapLedger: state.iapLedger || {}, rev: state.rev || 0 };
+  const keep = { settings: state.settings, gems: state.gems || 0, pass: state.pass || null, purchases: state.purchases || [], paidCoins: state.paidCoins || 0, piggy: state.piggy || null, iapLedger: state.iapLedger || {}, rev: state.rev || 0, review: state.review || null };
   const exclusive = (state.inventory || []).filter(id => id === 'top_jersey_gold' && keep.purchases.includes('starter_pack'));
   state = DEFAULT();
   Object.assign(state, { settings: keep.settings, gems: keep.gems, purchases: keep.purchases, paidCoins: keep.paidCoins, coins: keep.paidCoins, iapLedger: keep.iapLedger, rev: keep.rev });
   if (keep.pass) state.pass = keep.pass;
   if (keep.piggy) state.piggy = keep.piggy;
+  if (keep.review) state.review = { ...keep.review, wins: 0 };   // asks + date survive (the OS caps per device); the win baseline restarts with the wiped stages
   state.inventory.push(...exclusive);
   save();
   flushNative();   // the caller reloads the page right away: hand the native copy over now, not after the debounce
@@ -141,7 +144,7 @@ export function own(id) { return state.inventory.includes(id); }
 export function addItem(id) { if (!own(id)) { state.inventory.push(id); save(); return true; } return false; }
 export function addCoins(n) { state.coins = Math.max(0, Math.round(state.coins + n)); save(); }
 export function spend(n) { if (state.coins < n) return false; state.coins -= n; save(); return true; }
-export function equip(cat, id) { state.equipped[cat] = id; save(); }
+export function equip(cat, id) { reserveNow(); state.equipped[cat] = id; save(); }   // regen so far is counted at the old outfit's rate
 export function stageStars(n) { return state.stars[n] || 0; }
 export function recordWin(stage, stars, score) {
   state.stars[stage] = Math.max(state.stars[stage] || 0, stars);
@@ -158,16 +161,22 @@ export function tierFor(stageNext) { const w = stageNext - 1; return w >= 30 ? 4
 export const TIER_AT = [0, 5, 10, 20, 30];
 export function markSeen(k) { state.seen[k] = true; save(); }
 export const RESERVE_CAP = 30, RESERVE_MS = 180000;
+// the West Coast set regenerates 2x faster (js/sets.js reserveRegenMul); app.js registers the lookup so this module
+// never imports the wardrobe modules
+let regenMul = () => 1;
+export function setReserveRegen(fn) { reserveNow(); regenMul = fn; }
+export const reserveMs = () => { let m = 1; try { m = regenMul() || 1; } catch (_) { m = 1; } return Math.max(30000, Math.round(RESERVE_MS * m)); };
+export const reserveMinutes = () => Math.round(reserveMs() / 6000) / 10;   // 3 or 1.5
 export function reserveNow() {
   if (!state.reserve) state.reserve = { n: 15, at: Date.now() };
   const r = state.reserve, now = Date.now();
   if (r.n < RESERVE_CAP) {
-    const gained = Math.floor((now - r.at) / RESERVE_MS);
-    if (gained > 0) { r.n = Math.min(RESERVE_CAP, r.n + gained); r.at = r.n >= RESERVE_CAP ? now : r.at + gained * RESERVE_MS; save(); }
+    const ms = reserveMs(), gained = Math.floor((now - r.at) / ms);
+    if (gained > 0) { r.n = Math.min(RESERVE_CAP, r.n + gained); r.at = r.n >= RESERVE_CAP ? now : r.at + gained * ms; save(); }
   } else r.at = now;
   return r.n;
 }
-export function reserveEta() { reserveNow(); const r = state.reserve; return r.n >= RESERVE_CAP ? 0 : Math.max(0, RESERVE_MS - (Date.now() - r.at)); }
+export function reserveEta() { reserveNow(); const r = state.reserve; return r.n >= RESERVE_CAP ? 0 : Math.max(0, reserveMs() - (Date.now() - r.at)); }
 export function useReserve(n) { reserveNow(); if (state.reserve.n < n) return false; if (state.reserve.n >= RESERVE_CAP) state.reserve.at = Date.now(); state.reserve.n -= n; save(); return true; }
 export function addReserve(n) { reserveNow(); state.reserve.n = Math.min(RESERVE_CAP, state.reserve.n + n); save(); }
 export const STORAGE_PRICES = [250, 500, 1000, 2000];

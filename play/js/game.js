@@ -177,7 +177,7 @@ export class Game {
   }
   // ---------- drag & drop ----------
   drop(r1, c1, r2, c2) {
-    if (this.won || this.lost) return 'none';
+    if (this.won || this.lost || (r1 === r2 && c1 === c2)) return 'none';   // dropped back on its own cell
     const a = this.at(r1, c1), b = this.at(r2, c2);
     if (a && a.kind === 'crate') {
       if (b === null) { this.cells[r2][c2] = a; this.cells[r1][c1] = null; this.emit('move', { from: [r1, c1], to: [r2, c2], item: a }); return 'move'; }

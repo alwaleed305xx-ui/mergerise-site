@@ -28,6 +28,7 @@ export const I = {
   hint: () => svg('<path d="M16 3a9 9 0 00-5 16.5V23h10v-3.5A9 9 0 0016 3z" fill="#ffd34d" stroke="#c98a00" stroke-width="2.2"/><rect x="11" y="24" width="10" height="4" rx="2" fill="#c98a00"/>'),
   share: () => svg('<circle cx="24" cy="7" r="4" fill="#fff"/><circle cx="8" cy="16" r="4" fill="#fff"/><circle cx="24" cy="25" r="4" fill="#fff"/><path d="M11 14l10-5M11 18l10 5" stroke="#fff" stroke-width="2.5"/>'),
   hand: () => svg('<path d="M14 30l-8-9c-1-1.5 1-3.5 2.5-2.5L12 21V7c0-2.5 4-2.5 4 0v8c0-2 4-2 4 0v1c0-2 4-2 4 0v1c0-2 4-2 4 0v8c0 3-2 5-5 5z" fill="#fff" stroke="#2a1d4d" stroke-width="2" stroke-linejoin="round"/>'),
+  globe: () => svg('<circle cx="16" cy="16" r="13" fill="#38bdf8" stroke="#0e7490" stroke-width="2.4"/><path d="M5 11c4 2 6-1 9 1s0 6 3 7 5 4 4 7M20 4c-1 3 2 4 4 4s4 2 4 4" fill="none" stroke="#bbf7d0" stroke-width="2.6" stroke-linecap="round"/><path d="M3 16h26M16 3c-6 5-6 21 0 26M16 3c6 5 6 21 0 26" fill="none" stroke="#0e7490" stroke-width="1.6" opacity=".7"/>'),
   trophy: () => svg('<path d="M9 4h14v9a7 7 0 01-14 0z" fill="#ffd34d" stroke="#c98a00" stroke-width="2.2"/><path d="M9 7H4c0 5 2 8 6 8M23 7h5c0 5-2 8-6 8" fill="none" stroke="#c98a00" stroke-width="2.4"/><path d="M13 20h6v4h-6zM10 24h12v4H10z" fill="#c98a00"/>'),
 };
 export const rarityColor = r => (RARITY[r] || RARITY.common).color;
@@ -47,7 +48,7 @@ export function modal({ title, body, actions = [], closable = false, cls = '', o
   bg.append(m);
   $('#overlay').append(bg);
   let closed = false;
-  function close() { if (closed) return; closed = true; bg.style.animation = 'fade .18s ease reverse'; m.style.animation = 'modalIn .18s ease reverse'; setTimeout(() => bg.remove(), 170); onClose && onClose(); }
+  function close() { if (closed) return; closed = true; bg.style.pointerEvents = 'none'; bg.style.animation = 'fade .18s ease reverse'; m.style.animation = 'modalIn .18s ease reverse'; setTimeout(() => bg.remove(), 170); onClose && onClose(); }
   return { el: m, bg, close };
 }
 export function toast(msg, { icon, ms = 1800, action } = {}) {

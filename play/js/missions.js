@@ -1,6 +1,7 @@
 // Daily missions (3 per day, date-seeded), a 7-day streak calendar, and lifetime achievements.
 // Progress is fed by play.js events through `track(type, n)`; everything lives in state (no backend).
 import { state, save, addCoins, addItem, addReserve, equip, claimDaily, RESERVE_CAP } from './store.js';
+import { citiesDone } from './cities.js';
 import { todayKey, rng, el, $, haptic } from './util.js';
 import { addGems, spendGems, passActive } from './economy.js';
 import { rollGift } from './wardrobe.js';
@@ -237,6 +238,10 @@ export const ACHIEVEMENTS = [
   { id: 'streak_7', text: { en: 'Seven Days Strong', ar: 'سبعة أيام متواصلة' }, desc: { en: 'Keep a 7-day streak', ar: 'حافظ على 7 أيام متتالية' }, check: c => (c.streakMax || 0) >= 7, reward: { gems: 30 } },
   { id: 'golden_5', text: { en: 'Golden Touch', ar: 'اللمسة الذهبية' }, desc: { en: 'Win 5 golden stages', ar: 'افز بـ 5 مراحل ذهبية' }, check: c => (c.golden || 0) >= 5, reward: { gems: 20 } },
   { id: 'tier_4', text: { en: 'Beverly Hills', ar: 'بيفرلي هيلز' }, desc: { en: 'Reach the mansion', ar: 'وصل القصر' }, check: (c, s) => (s.stage || 1) > 30, reward: { gems: 100 } },
+  { id: 'tour_1', text: { en: 'Passport Stamped', ar: 'ختم الجواز' }, desc: { en: 'Finish your first World Tour city', ar: 'أنهِ أول مدينة في جولة العالم' }, check: (c, s) => citiesDone(s.stage) >= 1, reward: { gems: 20 } },
+  { id: 'tour_5', text: { en: 'Jet Setter', ar: 'كثير السفر' }, desc: { en: 'Finish 5 World Tour cities', ar: 'أنهِ 5 مدن في جولة العالم' }, check: (c, s) => citiesDone(s.stage) >= 5, reward: { gems: 40 } },
+  { id: 'tour_10', text: { en: 'Globetrotter', ar: 'رحّالة' }, desc: { en: 'Finish 10 World Tour cities', ar: 'أنهِ 10 مدن في جولة العالم' }, check: (c, s) => citiesDone(s.stage) >= 10, reward: { gems: 60 } },
+  { id: 'tour_20', text: { en: 'World Champion', ar: 'بطل العالم' }, desc: { en: 'Finish all 20 World Tour cities', ar: 'أنهِ مدن جولة العالم العشرين' }, check: (c, s) => citiesDone(s.stage) >= 20, reward: { gems: 150 } },
 ];
 export function setCounter(key, value) { ensure(); const c = state.achievements.counters; if ((c[key] || 0) < value) { c[key] = value; save(); } }
 // returns newly unlocked achievements (and pays their rewards)
@@ -284,6 +289,7 @@ const rewardText = r => r.gift ? name(S.gift) : r.gems ? `${r.gems}` : `${r.coin
 // week's free shield is still available), claim button. Once today is claimed it becomes a single 32 px chip
 // (class .collapsed: "✓ Day 5 · tomorrow 250") that expands to the full strip on tap (class .peek) and collapses again
 // on a tap of its header. Fires document 'mr:wallet' after any pay-out; repaints on document 'mr:streak'.
+let liveStreak = null;   // the hub's current streak strip listener (js/screens/hub.js renders one per visit)
 export function streakStrip(app, opts = {}) {
   const wrap = el('div', { class: 'streak-strip' });
   const luis = npcByName('Luis');
@@ -334,7 +340,8 @@ export function streakStrip(app, opts = {}) {
     if (!claimedToday) wrap.append(el('button', { class: 'btn gold sm sk-claim', onclick: e => { e.stopPropagation(); claim(e.currentTarget); } }, [el('span', { html: I.gift(true) }), `${name(S.claim)} · ${name(S.day)} ${st.day}`]));
   };
   const onStreak = () => { if (!wrap.isConnected) { document.removeEventListener('mr:streak', onStreak); return; } paint(); };
-  document.addEventListener('mr:streak', onStreak);
+  if (liveStreak) document.removeEventListener('mr:streak', liveStreak);
+  liveStreak = onStreak; document.addEventListener('mr:streak', onStreak);
   async function claim(fromEl) {
     if (busy) return; busy = true;
     const st = claimStreak(); if (!st) { busy = false; return; }

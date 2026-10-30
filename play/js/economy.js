@@ -39,12 +39,10 @@ export const GEM = {
   recharge: 2,                         // = 100 coins
   hammer: 2,                           // = 100 coins
   storageSlot: [5, 10, 20, 40],        // = 250 / 500 / 1000 / 2000 coins
-  premiumBox: 36,                      // = direct price of an epic item: the worst case is never worse than buying it
   legendaryItem: 100,                  // = 5000 coins
   epicItem: 36,                        // = 1800 coins
   coinsPack: { gems: 20, coins: 1000 },// in-shop exchange at the same rate
 };
-export const PREMIUM_BOX_ODDS = { epic: 0.85, legendary: 0.15 };
 // gems, fills in days not weeks. start: a one-time welcome fill (= minBreak), so piggy_break can be bought, and
 // reviewed by App Review, on a fresh install; after a break it refills from wins only.
 export const PIGGY = { perWin: 6, perGolden: 14, cap: 400, minBreak: 240, start: 240 };

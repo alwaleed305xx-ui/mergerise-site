@@ -1,6 +1,7 @@
 // MergeRise bootstrap + screen router.
 import { el, $ } from './util.js';
-import { state, hasProfile, save } from './store.js';
+import { state, hasProfile, save, setReserveRegen } from './store.js';
+import { perksFor } from './sets.js';
 import { setLang, t } from './i18n.js';
 import * as audio from './audio.js';
 import * as create from './screens/create.js';
@@ -22,8 +23,7 @@ export const app = {
     const mod = SCREENS[name]; if (!mod) return;
     if (cleanup) { try { cleanup(); } catch (_) { /* ignore */ } cleanup = null; }
     $('#overlay').innerHTML = '';
-    const old = rootEl.firstElementChild;
-    if (old) { old.classList.add('leaving'); setTimeout(() => old.remove(), 220); }
+    for (const old of rootEl.querySelectorAll(':scope > .screen:not(.leaving)')) { old.classList.add('leaving'); setTimeout(() => old.remove(), 220); }
     const screen = el('div', { class: 'screen' });
     rootEl.append(screen);
     rootEl.scrollTop = 0; rootEl.scrollLeft = 0;
@@ -66,6 +66,7 @@ function boot() {
   // the app container must never scroll (focus / scrollIntoView would shift the whole game)
   rootEl.addEventListener('scroll', () => { rootEl.scrollTop = 0; rootEl.scrollLeft = 0; });
   setLang(state.settings.lang || 'en');
+  setReserveRegen(() => perksFor(state.equipped).reserveRegenMul || 1);   // West Coast set: reserve +1 twice as fast
   audio.setSfx(state.settings.sfx); audio.setMusic(state.settings.music);
   const unlock = () => { audio.unlock(); };
   window.addEventListener('pointerdown', unlock, { once: true });

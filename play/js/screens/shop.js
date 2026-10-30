@@ -1,6 +1,6 @@
-// Shop: Deals (starter pack, 30-day pass, bonus piggy, premium box, gems→coins) · Gems · clothes by category.
+// Shop: Deals (starter pack, 30-day pass, bonus piggy, today's featured pieces, gems→coins) · Gems · clothes by category.
 // Compliance notes: store-localised prices when available, no fake 'popular' badges (best value is computed),
-// the pass is a one-time 30-day purchase (no auto-renewal), premium-box odds reflect what can actually drop,
+// the pass is a one-time 30-day purchase (no auto-renewal), nothing is sold at random (featured pieces show the exact item first),
 // gem prices carry a real-money reference, and payments are disabled (not mocked) on store builds without the
 // store plugin. Native (App Store on iOS, Google Play on Android): store prices (priceString) only; a product the store
 // did not return is hidden; '…' while the prices load. The demo-checkout note shows on the web build only. Restore
@@ -8,14 +8,13 @@
 import { el, $, haptic, fmt, rng, todayKey } from '../util.js';
 import { t, name, getLang } from '../i18n.js';
 import { state, save, own, addItem, spend, equip, addCoins } from '../store.js';
-import { CATS, byCat, forGender, priceOf, getItem, giftPool, rollGift } from '../wardrobe.js';
-import { PRODUCTS, GEM, PIGGY, PREMIUM_BOX_ODDS, PASS, gems, spendGems, piggyGems, passActive, passDaysLeft, starterAvailable, bestValueId, granted, gemRef } from '../economy.js';
+import { CATS, byCat, forGender, priceOf, getItem, giftPool } from '../wardrobe.js';
+import { PRODUCTS, GEM, PIGGY, PASS, gems, spendGems, piggyGems, passActive, passDaysLeft, starterAvailable, bestValueId, granted, gemRef } from '../economy.js';
 import { buy, isMock, canPay, priceLabel, entryPrice, providerName, productShown, purchasable, loadPrices, restorePurchases, storeUnavailable, pollPurchases } from '../payments.js';
 import { openLegal } from '../legal.js';
 import { sfx } from '../audio.js';
 import { I, modal, toast, itemCard, itemThumb, rarityColor } from '../ui.js';
 import { fx } from '../particles.js';
-import { giftFlow } from '../gift.js';
 
 export const gemIcon = () => `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M9 4h14l6 8-13 17L3 12z" fill="#22d3ee" stroke="#0e7490" stroke-width="2.2" stroke-linejoin="round"/><path d="M3 12h26M9 4l4 8 3-8 3 8 4-8M13 12l3 17 3-17" fill="none" stroke="#0e7490" stroke-width="1.6" opacity=".8"/><path d="M10 6l3 5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".8"/></svg>`;
 // "≈ <money>" for a gem amount, from the entry pack's store price; empty until a real price is known (never USD on native)
@@ -79,34 +78,24 @@ export function render(root, params, app) {
   // null when the store does not offer the product (hidden, never a USD fallback on native)
   const payBtn = (prod, cls = 'gold', extra = '') => productShown(prod.id) ? el('button', { class: 'btn sm ' + cls, disabled: !purchasable(prod.id), onclick: () => purchase(prod.id) }, `${priceLabel(prod)}${extra}`) : null;
 
-  // ---------- premium box: odds match the real pool, roll before charging, never below epic ----------
-  const boxPools = () => { const cap = Math.max(state.stage, 10); return { legs: giftPool(cap, p.gender, state.inventory, 'legendary').length, epics: giftPool(cap, p.gender, state.inventory, 'epic').length }; };
-  const oddsText = () => { const { legs, epics } = boxPools(); return legs && epics ? `${t('rarity.epic')} ${Math.round(PREMIUM_BOX_ODDS.epic * 100)}% · ${t('rarity.legendary')} ${Math.round(PREMIUM_BOX_ODDS.legendary * 100)}%` : legs ? `${t('rarity.legendary')} 100%` : epics ? `${t('rarity.epic')} 100%` : t('youOwnAll'); };
-  // confirmation sheet: the odds are shown again before any gem is spent
-  const premiumBoxConfirm = () => {
-    sfx.tap();
-    const { legs, epics } = boxPools();
-    if (!legs && !epics) { toast(t('youOwnAll')); return; }
-    modal({ title: `✨ ${t('premiumBox')}`, closable: true, body: el('div', {}, [
-      el('div', { class: 'win-story' }, t('premiumBoxHint')),
-      el('div', { class: 'reward', style: { marginTop: '8px' } }, `${t('odds')}: ${oddsText()}`),
-      el('div', { class: 'tiny', style: { marginTop: '6px' } }, `${GEM.premiumBox} 💎 ${approx(GEM.premiumBox)}`.trim()),
-    ]), actions: [{ label: t('cancel'), cls: 'light' }, { html: `${gemIcon()}<span>${GEM.premiumBox}</span>`, cls: 'purple', onClick: () => { premiumBox(); } }] });
-  };
-  const premiumBox = async () => {
-    const { legs, epics } = boxPools();
-    if (!legs && !epics) { toast(t('youOwnAll')); return; }
-    const cap = Math.max(state.stage, 10);
-    const roll = r => rollGift(cap, p.gender, state.inventory, Math.random, r, true);
-    const wantLegendary = legs > 0 && (!epics || Math.random() < PREMIUM_BOX_ODDS.legendary);
-    const item = roll(wantLegendary ? 'legendary' : 'epic') || roll(wantLegendary ? 'epic' : 'legendary');
-    if (!item) { toast(t('youOwnAll')); return; }
-    if (!spendGems(GEM.premiumBox)) { sfx.error(); toast(t('notEnoughGems'), { icon: gemIcon() }); cat = 'gems'; paintTabs(); paintGrid(); return; }
-    paintChips();
-    const choice = await giftFlow({ item, golden: true, dup: false, dupCoins: 0, gender: p.gender, skin: p.skin, equipped: state.equipped, title: t('premiumBox') });
-    addItem(item.id); state.seen.newIds = [...new Set([...(state.seen.newIds || []), item.id])]; save();
-    if (choice === 'wear') { equip(item.cat, item.id); if (item.cat === 'top' || item.cat === 'bottom') equip('outfit', null); }
-    paintChips(); paintGrid();
+  // ---------- today's featured pieces: the exact item (picture, name, rarity, price) is shown before any gem is
+  // spent. Nothing in the shop is random (the old random Premium Box was removed: no loot boxes). The picks are saved
+  // with the day (state.featured), so gifts, purchases or a new stage never swap them before local midnight; a piece
+  // the player already owns shows as owned until the next day's pick.
+  const featured = () => {
+    const day = todayKey();
+    if (!state.featured || state.featured.day !== day || state.featured.gender !== p.gender) {
+      const cap = Math.max(state.stage, 10);
+      const pick = rarity => {
+        const pool = giftPool(cap, p.gender, state.inventory, rarity);
+        if (!pool.length) return null;
+        let h = 2166136261; for (const ch of day + rarity) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+        return pool[h % pool.length].id;
+      };
+      state.featured = { day, gender: p.gender, epic: pick('epic'), legendary: pick('legendary') };
+      save();
+    }
+    return [state.featured.epic, state.featured.legendary].map(id => id && getItem(id)).filter(Boolean);
   };
 
   // ---------- clothes purchase (coins, or gems for epic/legendary at the same rate) ----------
@@ -180,12 +169,14 @@ export function render(root, params, app) {
         // A fresh save starts at PIGGY.start (= minBreak), so the buy button is there on first launch (App Review).
         pg < PIGGY.minBreak ? el('span', { class: 'tiny', style: { color: '#fff', flexShrink: 0 } }, `${t('fillTo')} ${PIGGY.minBreak}`) : payBtn(piggy),
       ]));
-      const { legs, epics } = boxPools();
-      grid.append(el('div', { class: 'deal box' }, [
-        el('div', { class: 'th', html: I.gift(true) }),
-        el('div', { class: 't' }, [el('div', { class: 'dtitle' }, `✨ ${t('premiumBox')}`), el('div', { class: 'tiny', style: { color: '#fff' } }, t('premiumBoxHint')), el('div', { class: 'tiny' }, `${t('odds')}: ${oddsText()}`), el('div', { class: 'tiny' }, `${GEM.premiumBox} 💎 ${approx(GEM.premiumBox)}`.trim())]),
-        el('button', { class: 'btn sm purple', disabled: !legs && !epics, onclick: premiumBoxConfirm, html: `${gemIcon()}<span>${GEM.premiumBox}</span>` }),
-      ]));
+      for (const it of featured()) {
+        const gemPrice = it.rarity === 'legendary' ? GEM.legendaryItem : GEM.epicItem, owned = own(it.id);
+        grid.append(el('div', { class: 'deal box' }, [
+          el('div', { class: 'th', html: itemThumb(it, p.gender, p.skin, state.equipped) }),
+          el('div', { class: 't' }, [el('div', { class: 'dtitle' }, `✨ ${t('featuredPiece')}`), el('div', { class: 'tiny', style: { color: '#fff' } }, `${name(it.name)} · ${t('rarity.' + it.rarity)}`), el('div', { class: 'tiny' }, owned ? t('featuredOwned') : t('featuredHint')), owned ? null : el('div', { class: 'tiny' }, `${gemPrice} 💎 ${approx(gemPrice)}`.trim())]),
+          owned ? el('span', { class: 'tiny', style: { color: '#fff', flexShrink: 0 } }, '✓') : el('button', { class: 'btn sm purple', onclick: () => { sfx.tap(); buyItem(it, priceOf(it)); }, html: `${gemIcon()}<span>${gemPrice}</span>` }),
+        ]));
+      }
       // gems → coins exchange at the game's single rate
       grid.append(el('div', { class: 'deal' }, [
         el('div', { class: 'th', html: I.coin() }),
@@ -200,7 +191,7 @@ export function render(root, params, app) {
         grid.append(productCard(prod, { title: `${fmt(granted(prod))} 💎`, sub: prod.bonus ? `${t('bonus')} +${prod.bonus}%` : '', icon: gemIcon(), onBuy: () => purchase(prod.id) }));
       }
       const one = approx(1);
-      grid.append(el('div', { class: 'section-title' }, t('gemUses')), el('div', { class: 'tiny', style: { gridColumn: '1/-1', color: '#fff', lineHeight: 1.7 } }, `⚡ ${t('refillEnergy')} +${GEM.refillEnergy}: ${GEM.refillLadder.join(' → ')} 💎 (${t('ladderNote')}) · 🔋 ${t('recharge')} ${GEM.recharge} 💎 · 🔨 ${t('hammer')} ${GEM.hammer} 💎 · 📦 ${t('buySlot')} ${GEM.storageSlot.join('/')} 💎 · ✨ ${t('premiumBox')} ${GEM.premiumBox} 💎 · 👑 ${t('rarity.legendary')} ${GEM.legendaryItem} 💎${one ? ` · ${t('approx')} 1 💎 ${one}` : ''}`));
+      grid.append(el('div', { class: 'section-title' }, t('gemUses')), el('div', { class: 'tiny', style: { gridColumn: '1/-1', color: '#fff', lineHeight: 1.7 } }, `⚡ ${t('refillEnergy')} +${GEM.refillEnergy}: ${GEM.refillLadder.join(' → ')} 💎 (${t('ladderNote')}) · 🔋 ${t('recharge')} ${GEM.recharge} 💎 · 🔨 ${t('hammer')} ${GEM.hammer} 💎 · 📦 ${t('buySlot')} ${GEM.storageSlot.join('/')} 💎 · ✨ ${t('rarity.epic')} ${GEM.epicItem} 💎 · 👑 ${t('rarity.legendary')} ${GEM.legendaryItem} 💎${one ? ` · ${t('approx')} 1 💎 ${one}` : ''}`));
       footer();
       return;
     }

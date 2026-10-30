@@ -1,15 +1,17 @@
 // WebAudio synthesised SFX + a soft generative music loop (no asset files).
 let ctx = null, master = null, musicGain = null, sfxGain = null;
-let enabledSfx = true, enabledMusic = true, musicTimer = null, musicStep = 0;
+let enabledSfx = true, enabledMusic = true, musicTimer = null, musicStep = 0, nextNote = 0;
 
 function ensure() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return ctx; }
+  if (ctx) { if (ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(() => null); return ctx; }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   ctx = new AC();
   master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
   sfxGain = ctx.createGain(); sfxGain.gain.value = enabledSfx ? 1 : 0; sfxGain.connect(master);
   musicGain = ctx.createGain(); musicGain.gain.value = enabledMusic ? 0.22 : 0; musicGain.connect(master);
+  // the first touch after an interruption brings the sound back (iOS leaves the context 'interrupted')
+  window.addEventListener('pointerdown', () => { if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => null); }, { passive: true });
   return ctx;
 }
 export function unlock() { ensure(); if (enabledMusic) startMusic(); }
@@ -17,7 +19,7 @@ export function setSfx(on) { enabledSfx = on; if (sfxGain) sfxGain.gain.value = 
 export function setMusic(on) { enabledMusic = on; if (musicGain) musicGain.gain.setTargetAtTime(on ? 0.22 : 0, ctx.currentTime, 0.1); if (on) startMusic(); }
 
 function tone({ f = 440, f2 = null, type = 'sine', dur = 0.15, vol = 0.3, at = 0, attack = 0.005, decay = null, dest = null }) {
-  const c = ensure(); if (!c) return;
+  const c = ensure(); if (!c || c.state === 'interrupted' || (!enabledSfx && !dest)) return;
   const t0 = c.currentTime + at;
   const o = c.createOscillator(); const g = c.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t0);
@@ -29,7 +31,7 @@ function tone({ f = 440, f2 = null, type = 'sine', dur = 0.15, vol = 0.3, at = 0
   o.start(t0); o.stop(t0 + (decay ?? dur) + 0.05);
 }
 function noise({ dur = 0.2, vol = 0.2, at = 0, hp = 800 }) {
-  const c = ensure(); if (!c) return;
+  const c = ensure(); if (!c || c.state === 'interrupted' || !enabledSfx) return;
   const t0 = c.currentTime + at;
   const buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
   const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
@@ -87,22 +89,28 @@ const CHORDS = [[0, 4, 7], [-3, 0, 4], [-5, 0, 2], [-7, -3, 0]];  // C, Am, F, G
 const midi = n => 261.63 * Math.pow(2, n / 12);
 function startMusic() {
   if (musicTimer || !ctx) return;
-  const stepMs = 60000 / 100 / 2; // eighth notes
-  musicStep = 0;
+  const step = 60 / 100 / 2; // eighth notes, in seconds
+  musicStep = 0; nextNote = 0;
+  // look-ahead scheduler: a 100 ms timer books every note due in the next 0.35 s at its exact audio-clock time
   musicTimer = setInterval(() => {
-    if (!enabledMusic || document.hidden) return;
-    const bar = Math.floor(musicStep / 8) % CHORDS.length;
-    const chord = CHORDS[bar];
-    if (musicStep % 8 === 0) {
-      chord.forEach(n => tone({ f: midi(n - 12), type: 'sine', dur: 2.3, vol: 0.09, attack: 0.4, dest: musicGain }));
-      tone({ f: midi(chord[0] - 24), type: 'triangle', dur: 2.3, vol: 0.07, attack: 0.3, dest: musicGain });
-    }
-    const beat = musicStep % 8;
-    if (beat % 2 === 0 || Math.random() < 0.35) {
-      const n = chord[beat % 3] + 12 + SCALE[Math.floor(Math.random() * 3)];
-      tone({ f: midi(n), type: 'triangle', dur: 0.35, vol: 0.07, attack: 0.01, dest: musicGain });
-    }
-    musicStep++;
-  }, stepMs);
+    if (!enabledMusic || document.hidden || !ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    if (nextNote < now - step) nextNote = now + 0.05;   // after a stall or a pause: skip, never burst
+    while (nextNote < now + 0.35) { musicNote(nextNote - now); nextNote += step; }
+  }, 100);
+}
+function musicNote(at) {
+  const bar = Math.floor(musicStep / 8) % CHORDS.length;
+  const chord = CHORDS[bar];
+  if (musicStep % 8 === 0) {
+    chord.forEach(n => tone({ f: midi(n - 12), type: 'sine', dur: 2.3, vol: 0.09, attack: 0.4, at, dest: musicGain }));
+    tone({ f: midi(chord[0] - 24), type: 'triangle', dur: 2.3, vol: 0.07, attack: 0.3, at, dest: musicGain });
+  }
+  const beat = musicStep % 8;
+  if (beat % 2 === 0 || Math.random() < 0.35) {
+    const n = chord[beat % 3] + 12 + SCALE[Math.floor(Math.random() * 3)];
+    tone({ f: midi(n), type: 'triangle', dur: 0.35, vol: 0.07, attack: 0.01, at, dest: musicGain });
+  }
+  musicStep++;
 }
 export function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } }

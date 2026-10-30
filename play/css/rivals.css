@@ -69,7 +69,7 @@ html[dir="rtl"] .ri-rival { animation-name: walkInRtl; }
 
 /* ---------- This Week screen ---------- */
 .week .week-list { gap: 10px; }
-.wk-card { background: var(--glass); border: 1px solid var(--stroke); border-radius: 20px; padding: 10px 12px; color: #fff; display: flex; flex-direction: column; gap: 6px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.wk-card { background: var(--glass); border: 1px solid var(--stroke); border-radius: 20px; padding: 10px 12px; color: #fff; display: flex; flex-direction: column; gap: 6px; }
 .wk-card .coll-head { margin-bottom: 2px; }
 .wk-head { background: linear-gradient(135deg, rgba(139,92,246,.28), rgba(236,72,153,.14)); border-color: rgba(236,72,153,.45); }
 .wk-theme { display: flex; align-items: center; gap: 10px; font-size: 16px; }

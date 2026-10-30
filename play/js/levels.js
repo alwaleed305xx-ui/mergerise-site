@@ -2,10 +2,13 @@
 // medium order and an optional tip order, guaranteed first merge, clutter boards from stage 8, sawtooth
 // difficulty (breather every 4th stage, golden peak every 5th), generators with charges + cooldown + rare line,
 // locked items, fog (some hiding crates), bubbles, two optional star quests. Hand-tuned 1-3, generated afterwards.
+// From stage 31 the World Tour (js/cities.js) layers each city's board rule and a tighter energy budget on top;
+// stages 1-30 and the Daily Hustle never see it, so their R() sequences stay what the balance bot measured.
 import { rng, clamp, todayKey } from './util.js';
 import { MAX_LEVEL } from './items.js';
 import { state, tierFor } from './store.js';
 import { hostFor, CAST } from './customers.js';
+import { tourFor, WALLS, TOUR_BONUS, TOUR_END, CITY_LEN } from './cities.js';
 export { MAX_LEVEL };
 
 // Deterministic 32-bit seed from any string (FNV-1a) — e.g. seedFrom(todayKey()) for the Daily Hustle.
@@ -89,14 +92,18 @@ const HAND = {
 // generate(n, seed, opts): `seed` undefined keeps the stage's own seed (today's behaviour byte for byte);
 // opts.chain = host chain (every order's main item), opts.host = customer who posts every order,
 // opts.golden overrides the n % 5 golden flag, opts.breather overrides the n % 4 breather (the Daily Hustle passes
-// false for both). The R() call sequence is unchanged when opts is empty.
+// false for both), opts.tour = false keeps the World Tour off (Daily Hustle). The R() call sequence is unchanged
+// when opts is empty and n < 31.
 function generate(n, seed, opts = {}) {
   const R = rng(seed === undefined ? n * 7919 + 13 : seed);
+  const T = opts.tour === false ? null : tourFor(n), M = T ? T.mods : {};   // World Tour city knobs
+  const walls = new Set((WALLS[M.walls] || []).map(p => p + ''));
   const avail = CHAIN_ORDER.filter(k => CHAIN_UNLOCK[k] <= n);
   const golden = opts.golden !== undefined ? !!opts.golden : n % 5 === 0;
   const breather = opts.breather !== undefined ? !!opts.breather : (n % 4 === 0 && !golden);   // sawtooth: an easy stage after every three
   const homeTier = tierFor(n);                        // the home the player lives in while playing stage n (F6c cast)
   let nOrders = n < 5 ? 2 : n < 12 ? 3 : 3 + (R() < 0.35 ? 1 : 0);
+  if (T && (M.crowd || T.finale)) nOrders = 4;                       // crowd cities and every city finale: four orders
   if (breather) nOrders = Math.max(2, nOrders - 1);
   const nGens = Math.min(avail.length, n < 10 ? 2 : 3);
   const pool = [...avail];
@@ -113,7 +120,7 @@ function generate(n, seed, opts = {}) {
     const lvl = tier === 'easy' ? Math.max(2, baseL - 1) : tier === 'medium' ? baseL : Math.min(6, baseL + (golden ? 1 : 0) + (R() < 0.3 ? 1 : 0));
     const items = [{ chain, lvl, count: tier === 'easy' ? 1 + Math.floor(R() * 2) : 1 }];
     if (tier === 'hard' && gensChains.length > 1) { const other = hostChain ? (gensChains.find(x => x !== hostChain) || gensChains[(i + 1) % gensChains.length]) : gensChains[(i + 1) % gensChains.length]; items.push({ chain: other, lvl: Math.max(2, lvl - 2 + Math.floor(R() * 2)), count: 1 }); }
-    else if (tier === 'medium' && R() < 0.4) items[0].count = 2;
+    else if (tier === 'medium' && (M.twin || R() < 0.4)) items[0].count = 2;
     const o = order(items, tier, castPick(R, homeTier));
     if (hostCustomer) o.customer = { ...hostCustomer };                  // Daily Hustle: the host posts every order
     orders.push(o);
@@ -130,21 +137,23 @@ function generate(n, seed, opts = {}) {
   const med = orders.find(o => o.tier === 'medium'); if (med) med.crate = { drops: 4, pool: cratePool(hardChains.length ? hardChains : gensChains) };
   // generators: charges + cooldown tighten slowly; one rare line each; an auto producer sometimes from stage 10
   const gpos = nGens === 1 ? [[4, 3]] : nGens === 2 ? [[4, 2], [4, 4]] : [[3, 1], [3, 5], [6, 3]];
-  const charges = n < 10 ? 10 : n < 20 ? 9 : 8;
-  const cooldown = Math.min(14000, 6000 + n * 200);
+  const charges = M.lean ? 7 : n < 10 ? 10 : n < 20 ? 9 : 8;
+  const cooldown = M.lean ? 12000 : Math.min(14000, 6000 + n * 200);
   const gens = gensChains.map((chain, i) => {
     const rareChain = gensChains.find(x => x !== chain) || null;
     return gen(gpos[i][0], gpos[i][1], chain, charges, cooldown, rareChain ? { rare: { chain: rareChain, p: 0.08 } } : {});
   });
   if (n >= 10 && R() < 0.4) {
-    const spot = [[0, 3], [7, 3], [0, 0], [7, 6]][Math.floor(R() * 4)];
+    const spots4 = [[0, 3], [7, 3], [0, 0], [7, 6]].filter(s => !walls.has(s + ''));
+    const spot = spots4[Math.floor(R() * spots4.length)];
     gens.push(gen(spot[0], spot[1], gensChains[0], 3, 14000, { auto: true, label: 'AUTO' }));
   }
   // board + fog
   const cells = grid(7, 8);
-  const fogCount = n < 10 ? 2 + Math.floor(R() * 3) : 4 + Math.floor(R() * 5);
+  for (const p of walls) { const [r, c] = p.split(',').map(Number); cells[r][c] = 'wall'; }
+  const fogCount = (n < 10 ? 2 + Math.floor(R() * 3) : 4 + Math.floor(R() * 5)) + (M.fog || 0);
   const edge = [];
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if ((r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) && !gens.some(g => g.c === c && g.r === r)) edge.push([r, c]);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if ((r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) && cells[r][c] === null && !gens.some(g => g.c === c && g.r === r)) edge.push([r, c]);
   const fogCells = [];
   for (let i = 0; i < fogCount && edge.length; i++) { const [r, c] = edge.splice(Math.floor(R() * edge.length), 1)[0]; cells[r][c] = 'fog'; fogCells.push([r, c]); }
   // open spots
@@ -167,15 +176,15 @@ function generate(n, seed, opts = {}) {
   for (let i = 0; i < nFree && spots.length; i++) { const [r, c] = take(); const g = orderChains[Math.floor(R() * orderChains.length)]; free.push({ r, c, chain: g.chain, lvl: 1 + Math.floor(R() * Math.min(3, g.lvl - 1)) }); }
   // clutter from stage 8: the board opens 30-45 % full of low items of the order chains (counted in the budget)
   if (n >= 8) {
-    const target = Math.round(openCells * (0.30 + Math.min(0.15, (n - 8) * 0.01)));
+    const target = Math.round(openCells * (0.30 + Math.min(0.15, (n - 8) * 0.01) + (M.clutter || 0)));
     while (free.length < target && spots.length) { const [r, c] = take(); const g = orderChains[Math.floor(R() * orderChains.length)]; free.push({ r, c, chain: g.chain, lvl: R() < 0.7 ? 1 : 2 }); }
   }
   const junkChain = CHAIN_ORDER.find(k => !orderChains.some(i => i.chain === k) && CHAIN_UNLOCK[k] <= Math.max(n, 3)) || null;
   const junk = [];
-  if (n >= 15 && junkChain) for (let i = 0; i < 1 + Math.floor(R() * 2) && spots.length; i++) { const [r, c] = take(); junk.push({ r, c, chain: junkChain, lvl: 1 }); }
+  if (n >= 15 && junkChain) for (let i = 0; i < 1 + Math.floor(R() * 2) + (M.junk || 0) && spots.length; i++) { const [r, c] = take(); junk.push({ r, c, chain: junkChain, lvl: 1 }); }
 
   const locked = [];
-  const nLocked = n < 4 ? 0 : Math.min(5, 1 + Math.floor(n / 6) + (R() < 0.5 ? 1 : 0));
+  const nLocked = n < 4 ? 0 : Math.min(5 + (M.locked || 0), 1 + Math.floor(n / 6) + (M.locked || 0) + (R() < 0.5 ? 1 : 0));
   for (let i = 0; i < nLocked && spots.length; i++) { const [r, c] = take(); const g = orderChains[Math.floor(R() * orderChains.length)]; locked.push({ r, c, chain: g.chain, lvl: Math.max(2, Math.min(g.lvl - 1, 3, 2 + Math.floor(R() * 2))) }); }
   const fogItems = fogCells.filter(() => R() < 0.6).map(([r, c]) => {
     const g = orderChains[Math.floor(R() * orderChains.length)];
@@ -217,15 +226,23 @@ function generate(n, seed, opts = {}) {
   const crateHelp = (med ? 4 : 0) + fogItems.filter(f => f.crate).length * 3 + (golden ? 8 : 0);
   // per-stage designer bonus for generated layouts that the balance bot passed under 80 % (never cut, only add)
   const STAGE_BONUS = { 6: 2, 9: 5, 17: 2, 34: 6, 36: 8 };
-  const energyBudget = budget(orders, free, locked, fogItems, factor, crateHelp) + (golden ? 3 : 0) + (STAGE_BONUS[n] || 0);
+  let energyBudget = budget(orders, free, locked, fogItems, factor, crateHelp) + (golden ? 3 : 0) + (T ? 0 : (STAGE_BONUS[n] || 0));
+  // World Tour: the city's share of the classic budget (breathers and finales keep a little more)
+  if (T) energyBudget = Math.max(8, Math.round(energyBudget * (T.tight + (breather ? 0.12 : 0) + (T.finale ? 0.06 : 0)))) + (TOUR_BONUS[n] || 0);
   if (R() < 0.5 || !qpool.length) quests.push(quest('energyLeft', Math.max(2, Math.round(energyBudget * 0.2))));
   else quests.push(qpool.splice(Math.floor(R() * qpool.length), 1)[0]);
-  return { cells, gens, items: [...free, ...junk], locked, fogItems, crates, orders, quests: quests.slice(0, 2), charges: energyBudget, breather, energy: n >= 5 ? Math.min(0.14, 0.08 + n * 0.001) : 0, bubble: n >= 3 ? 0.12 : 0 };
+  const tour = T ? { idx: T.idx, id: T.city.id, step: T.step, finale: T.finale, champion: T.champion } : null;
+  return { cells, gens, items: [...free, ...junk], locked, fogItems, crates, orders, quests: quests.slice(0, 2), charges: energyBudget, breather, energy: n >= 5 ? Math.min(0.14, 0.08 + n * 0.001) * (M.spark || 1) : 0, bubble: n >= 3 ? (M.bubbles || 0.12) : 0, tour };
 }
 
+// World Champion encore (n > 1030): replays the last five cities' bot-calibrated layouts in a 250-stage cycle, so
+// TOUR_BONUS covers it and every board has a measured pass rate; 250 is a multiple of 5, so golden stays golden
+const ENCORE = CITY_LEN * 5;
 export function getLevel(n) {
-  const base = HAND[n] ? HAND[n]() : generate(n);
-  return { n, cols: COLS, rows: ROWS, golden: n % 5 === 0, breather: false, fogItems: [], locked: [], crates: [], energy: 0, bubble: 0, tutorial: false, quests: [], ...base, chains: [...new Set([...base.gens.map(g => g.chain), ...base.orders.flatMap(o => o.items.map(i => i.chain))])] };
+  const twin = n > TOUR_END ? TOUR_END - ENCORE + 1 + (n - TOUR_END - 1) % ENCORE : n;
+  const base = HAND[n] ? HAND[n]() : generate(twin);
+  if (twin !== n) base.tour = { ...base.tour, step: n - TOUR_END, finale: false, champion: true };   // no second city reward
+  return { n, cols: COLS, rows: ROWS, golden: n % 5 === 0, breather: false, fogItems: [], locked: [], crates: [], energy: 0, bubble: 0, tutorial: false, quests: [], tour: null, ...base, chains: [...new Set([...base.gens.map(g => g.chain), ...base.orders.flatMap(o => o.items.map(i => i.chain))])] };
 }
 
 // ---------- Daily Hustle (F4) ----------
@@ -244,7 +261,7 @@ export function dailyInfo(d = new Date()) {
 export function dailyLevel() {
   const info = dailyInfo();
   const { n } = info;
-  const base = generate(n, seedFrom(info.date), { host: { name: info.host.name }, chain: info.chain, golden: false, breather: false });
+  const base = generate(n, seedFrom(info.date), { host: { name: info.host.name }, chain: info.chain, golden: false, breather: false, tour: false });
   const level = { n, cols: COLS, rows: ROWS, golden: false, breather: false, fogItems: [], locked: [], crates: [], energy: 0, bubble: 0, tutorial: false, quests: [], ...base, chains: [...new Set([...base.gens.map(g => g.chain), ...base.orders.flatMap(o => o.items.map(i => i.chain))])] };
   const hostColor = (CUSTOMERS.find(c => c[0] === info.host.name) || CUSTOMERS[0])[1];
   for (const o of level.orders) o.customer = { name: info.host.name, color: hostColor, initial: info.host.name[0] };
@@ -262,6 +279,7 @@ export function tipOrderFor(level, boardItems, rnd = Math.random) {
   o.reward = { coins: orderCost(o) * 4 + 10, score: orderCost(o) * 5 };
   return o;
 }
+// coins grow 10 per stage up to stage 40, then 1 per stage (a 1,000-stage tour must not flood the shop)
 export function rewardFor(level, stars, score) {
-  return 40 + level.n * 10 + stars * 30 + Math.round(score / 30) + (level.golden ? 150 : 0);
+  return 40 + Math.min(level.n, 40) * 10 + Math.max(0, level.n - 40) + stars * 30 + Math.round(score / 30) + (level.golden ? 150 : 0);
 }

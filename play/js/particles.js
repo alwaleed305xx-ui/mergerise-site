@@ -11,7 +11,7 @@ class Particles {
     this.w = r.width; this.h = r.height; this.cv.width = this.w * this.dpr; this.cv.height = this.h * this.dpr;
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   }
-  add(p) { this.ps.push(p); if (!this.running) { this.running = true; this.last = performance.now(); requestAnimationFrame(t => this.loop(t)); } }
+  add(p) { if (this.ps.length >= 180) return; this.ps.push(p); if (!this.running) { this.running = true; this.last = performance.now(); requestAnimationFrame(t => this.loop(t)); } }
   loop(t) {
     const dt = Math.min(0.05, (t - this.last) / 1000); this.last = t;
     const c = this.ctx; c.clearRect(0, 0, this.w, this.h);

@@ -64,7 +64,7 @@ export function giftPool(stage, gender, owned, rarity = null) {
   const ownedSet = new Set(owned);
   return forGender(gender).filter(it => it.rarity !== 'rags' && !EXCLUSIVE.has(it.id) && !ownedSet.has(it.id) && (it.tier ?? 1) <= stage && (!rarity || it.rarity === rarity));
 }
-// strict = a forced rarity never falls back to a lower one (used by the paid premium box)
+// strict = a forced rarity never falls back to a lower one
 export function rollGift(stage, gender, owned, rnd = Math.random, forceRarity = null, strict = false) {
   const ownedSet = new Set(owned);
   const pool = giftPool(stage, gender, owned);
